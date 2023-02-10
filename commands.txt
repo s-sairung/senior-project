@@ -1,0 +1,34 @@
+[Train]: 
+python train.py --workers 1 --device 0 --batch-size 8 --data data/coco.yaml --epochs 100 --img 640 640 --cfg cfg/training/yolov7.yaml --weight yolov7.pt --hyp data/hyp.scratch.custom.yaml --name yolov7-test
+
+python train.py --workers 1 --device 0 --batch-size 4 --data data/coco-train.yaml --epochs 100 --img 640 640 --cfg cfg/training/yolov7-tiny.yaml --weight yolov7-tiny.pt --hyp data/hyp.scratch.custom.yaml --name yolov7-tiny-traintest
+
+[Tranfer Learning]
+# finetune p5 models
+python train.py --workers 8 --device 0 --batch-size 32 --data data/coco-plus.yaml --img 640 640 --cfg cfg/training/yolov7-custom.yaml --weights 'yolov7_training.pt' --name yolov7-custom --hyp data/hyp.scratch.custom.yaml
+
+# finetune p6 models
+python train_aux.py --workers 8 --device 0 --batch-size 16 --data data/coco-plus.yaml --img 1280 1280 --cfg cfg/training/yolov7-w6-custom.yaml --weights 'yolov7-w6_training.pt' --name yolov7-w6-custom --hyp data/hyp.scratch.custom.yaml
+
+# Freeze
+python train.py --workers 2 --device 0 --batch-size 8 --data data/coco-sampling-plus.yaml --epochs 100 --img 640 640 --cfg cfg/training/yolov7-custom.yaml --weight yolov7_training.pt --hyp data/hyp.scratch.custom.yaml --name yolov7-transfer-learning --freeze 101
+
+[Test]:
+python test.py --data data/coco.yaml --img 640 --batch 32 --conf 0.001 --iou 0.65 --device 0 --weights yolov7.pt --name yolov7_640_val
+
+[Detect]:
+python detect.py --weights yolov7.pt --conf 0.4 --img-size 640 --source ./inference/images/0.jpg
+
+[Track]:
+python detect_or_track.py --weights yolov7.pt --no-trace --view-img --source street.mp4 --show-fps --nosave
+
+[extra commands]:
+--nosave
+--show-fps
+--seed (number)         //box color
+--track 		//labeling obj
+--classes (numbers) 	//respectively to coco.yaml
+--show-track
+--unique-track-color
+--nobbox		//no box
+--nolabel
