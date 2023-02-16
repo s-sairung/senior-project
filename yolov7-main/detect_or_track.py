@@ -153,11 +153,17 @@ def detect(save_img=False):
                     dets_to_sort = np.vstack((dets_to_sort, 
                                 np.array([x1, y1, x2, y2, conf, detclass])))
 
+                # print(dets_to_sort)
 
                 if opt.track:
   
                     tracked_dets = sort_tracker.update(dets_to_sort, opt.unique_track_color)
                     tracks =sort_tracker.getTrackers()
+                    # print("tracked_dets")
+                    # print(tracked_dets)
+                    # print("tracks")
+                    # print(tracks)
+
 
                     # draw boxes for visualization
                     if len(tracked_dets)>0:
