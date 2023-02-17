@@ -211,7 +211,9 @@ def detect(save_img=False):
 
             #######################################################
             if view_img:
+                cv2.namedWindow(str(p), cv2.WINDOW_KEEPRATIO) # NOTE: only works with the qt backend
                 cv2.imshow(str(p), im0)
+                cv2.resizeWindow(str(p), 960, 540)
                 cv2.waitKey(int(not opt.pause_frame)) # if pause_frame: 0 (forever) else: 1 (1 ms)
 
             # Save results (image with detections)
