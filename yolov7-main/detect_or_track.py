@@ -153,16 +153,15 @@ def detect(save_img=False):
                     dets_to_sort = np.vstack((dets_to_sort, 
                                 np.array([x1, y1, x2, y2, conf, detclass])))
 
-                # print(dets_to_sort)
+                # ic(dets_to_sort)
 
                 if opt.track:
   
                     tracked_dets = sort_tracker.update(dets_to_sort, opt.unique_track_color)
                     tracks =sort_tracker.getTrackers()
-                    # print("tracked_dets")
-                    # print(tracked_dets)
+                    ic(tracked_dets) # TODO: Find out the meaning of values in array
                     # print("tracks")
-                    # print(tracks)
+                    # [ic(tr.history) for tr in tracks]
 
 
                     # draw boxes for visualization
@@ -213,7 +212,7 @@ def detect(save_img=False):
             if view_img:
                 cv2.namedWindow(str(p), cv2.WINDOW_KEEPRATIO) # NOTE: only works with the qt backend
                 cv2.imshow(str(p), im0)
-                cv2.resizeWindow(str(p), 960, 540)
+                cv2.resizeWindow(str(p), 600, 600)
                 cv2.waitKey(int(not opt.pause_frame)) # if pause_frame: 0 (forever) else: 1 (1 ms)
 
             # Save results (image with detections)

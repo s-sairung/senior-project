@@ -12,6 +12,7 @@ import glob
 import time
 import argparse
 from filterpy.kalman import KalmanFilter
+from icecream import ic
 
 
 def get_color():
@@ -95,7 +96,7 @@ class KalmanBoxTracker(object):
         self.time_since_update = 0
         self.id = KalmanBoxTracker.count
         KalmanBoxTracker.count += 1
-        self.history = []
+        self.history = [] # prev frame
         self.hits = 0
         self.hit_streak = 0
         self.age = 0
@@ -128,7 +129,7 @@ class KalmanBoxTracker(object):
         """
         if((self.kf.x[6]+self.kf.x[2])<=0):
             self.kf.x[6] *= 0.0
-        self.kf.predict()
+        self.kf.predict() # TODO: Predict way ahead than current 1 frame
         self.age += 1
         if(self.time_since_update>0):
             self.hit_streak = 0
@@ -244,8 +245,10 @@ class Sort(object):
         to_del = []
         ret = []
         for t, trk in enumerate(trks):
-           
-            pos = self.trackers[t].predict()[0]
+            # ic(self.trackers[t].id)
+            prediction = self.trackers[t].predict()
+            # ic(prediction)
+            pos = prediction[0]
             trk[:] = [pos[0], pos[1], pos[2], pos[3], 0, 0]
             if np.any(np.isnan(pos)):
                 to_del.append(t)
