@@ -96,7 +96,7 @@ class KalmanBoxTracker(object):
         self.time_since_update = 0
         self.id = KalmanBoxTracker.count
         KalmanBoxTracker.count += 1
-        self.history = [] # prev frame
+        self.history = []
         self.hits = 0
         self.hit_streak = 0
         self.age = 0
@@ -129,7 +129,7 @@ class KalmanBoxTracker(object):
         """
         if((self.kf.x[6]+self.kf.x[2])<=0):
             self.kf.x[6] *= 0.0
-        self.kf.predict() # TODO: Predict way ahead than current 1 frame
+        self.kf.predict()
         self.age += 1
         if(self.time_since_update>0):
             self.hit_streak = 0

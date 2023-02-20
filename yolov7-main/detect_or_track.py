@@ -57,7 +57,8 @@ def detect(save_img=False):
     # Initialize
     set_logging()
     device = select_device(opt.device)
-    half = device.type != 'cpu'  # half precision only supported on CUDA
+    # half = device.type != 'cpu'  # half precision only supported on CUDA
+    half = False
 
     # Load model
     model = attempt_load(weights, map_location=device)  # load FP32 model
@@ -162,7 +163,6 @@ def detect(save_img=False):
                     ic(tracked_dets) # TODO: Find out the meaning of values in array
                     # print("tracks")
                     # [ic(tr.history) for tr in tracks]
-
 
                     # draw boxes for visualization
                     if len(tracked_dets)>0:
@@ -273,7 +273,6 @@ if __name__ == '__main__':
     parser.add_argument('--unique-track-color', action='store_true', help='show each track in unique color')
 
     parser.add_argument('--pause-frame', action='store_true', help='pause each frame')
-
 
     opt = parser.parse_args()
     print(opt)
