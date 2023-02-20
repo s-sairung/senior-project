@@ -12,6 +12,7 @@ import glob
 import time
 import argparse
 from filterpy.kalman import KalmanFilter
+from icecream import ic
 
 
 def get_color():
@@ -244,8 +245,10 @@ class Sort(object):
         to_del = []
         ret = []
         for t, trk in enumerate(trks):
-           
-            pos = self.trackers[t].predict()[0]
+            # ic(self.trackers[t].id)
+            prediction = self.trackers[t].predict()
+            # ic(prediction)
+            pos = prediction[0]
             trk[:] = [pos[0], pos[1], pos[2], pos[3], 0, 0]
             if np.any(np.isnan(pos)):
                 to_del.append(t)

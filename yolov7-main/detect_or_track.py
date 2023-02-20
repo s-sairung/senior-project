@@ -154,11 +154,15 @@ def detect(save_img=False):
                     dets_to_sort = np.vstack((dets_to_sort, 
                                 np.array([x1, y1, x2, y2, conf, detclass])))
 
+                # ic(dets_to_sort)
 
                 if opt.track:
   
                     tracked_dets = sort_tracker.update(dets_to_sort, opt.unique_track_color)
                     tracks =sort_tracker.getTrackers()
+                    ic(tracked_dets) # TODO: Find out the meaning of values in array
+                    # print("tracks")
+                    # [ic(tr.history) for tr in tracks]
 
                     # draw boxes for visualization
                     if len(tracked_dets)>0:
@@ -206,8 +210,10 @@ def detect(save_img=False):
 
             #######################################################
             if view_img:
+                cv2.namedWindow(str(p), cv2.WINDOW_KEEPRATIO) # NOTE: only works with the qt backend
                 cv2.imshow(str(p), im0)
-                cv2.waitKey(1)  # 1 millisecond
+                cv2.resizeWindow(str(p), 600, 600)
+                cv2.waitKey(int(not opt.pause_frame)) # if pause_frame: 0 (forever) else: 1 (1 ms)
 
             # Save results (image with detections)
             if save_img:
@@ -266,6 +272,7 @@ if __name__ == '__main__':
     parser.add_argument('--nolabel', action='store_true', help='don`t show label')
     parser.add_argument('--unique-track-color', action='store_true', help='show each track in unique color')
 
+    parser.add_argument('--pause-frame', action='store_true', help='pause each frame')
 
     opt = parser.parse_args()
     print(opt)
