@@ -17,6 +17,7 @@ from utils.torch_utils import select_device, load_classifier, time_synchronized,
 
 from sort import *
 
+from icecream import ic
 
 """Function to Draw Bounding boxes"""
 def draw_boxes(img, bbox, identities=None, categories=None, confidences = None, names=None, colors = None):
@@ -47,6 +48,7 @@ def draw_boxes(img, bbox, identities=None, categories=None, confidences = None, 
 
 def detect(save_img=False):
     source, weights, view_img, save_txt, imgsz, trace = opt.source, opt.weights, opt.view_img, opt.save_txt, opt.img_size, not opt.no_trace
+    use_second_model, weights_second = opt.second_model, opt.second_model_weights
     save_img = not opt.nosave and not source.endswith('.txt')  # save inference images
     webcam = source.isnumeric() or source.endswith('.txt') or source.lower().startswith(
         ('rtsp://', 'rtmp://', 'http://', 'https://'))
@@ -63,12 +65,16 @@ def detect(save_img=False):
     model = attempt_load(weights, map_location=device)  # load FP32 model
     stride = int(model.stride.max())  # model stride
     imgsz = check_img_size(imgsz, s=stride)  # check img_size
+    
+    model_second = attempt_load(weights_second, map_location=device) if use_second_model else None
 
     if trace:
         model = TracedModel(model, device, opt.img_size)
+        if use_second_model: model_second = TracedModel(model_second, device, opt.img_size)
 
     if half:
         model.half()  # to FP16
+        if use_second_model: model_second.half()
 
     # Second-stage classifier
     classify = False
@@ -88,10 +94,15 @@ def detect(save_img=False):
     # Get names and colors
     names = model.module.names if hasattr(model, 'module') else model.names
     colors = [[random.randint(0, 255) for _ in range(3)] for _ in names]
+    names_second, colors_second = None, None
+    if use_second_model:
+        names_second = model_second.module.names if hasattr(model_second, 'module') else model_second.names
+        colors_second = [[random.randint(0, 255) for _ in range(3)] for _ in names_second]
 
     # Run inference
     if device.type != 'cpu':
         model(torch.zeros(1, 3, imgsz, imgsz).to(device).type_as(next(model.parameters())))  # run once
+        if use_second_model: model_second(torch.zeros(1, 3, imgsz, imgsz).to(device).type_as(next(model.parameters()))) 
     old_img_w = old_img_h = imgsz
     old_img_b = 1
 
@@ -113,19 +124,25 @@ def detect(save_img=False):
             old_img_w = img.shape[3]
             for i in range(3):
                 model(img, augment=opt.augment)[0]
+                if use_second_model: model_second(img, augment=opt.augment)[0]
 
         # Inference
         t1 = time_synchronized()
         pred = model(img, augment=opt.augment)[0]
+        pred_second = model_second(img, augment=opt.augment)[0] if use_second_model else None
         t2 = time_synchronized()
 
         # Apply NMS
         pred = non_max_suppression(pred, opt.conf_thres, opt.iou_thres, classes=opt.classes, agnostic=opt.agnostic_nms)
+        if use_second_model: pred_second = non_max_suppression(pred_second, opt.conf_thres, opt.iou_thres, classes=opt.classes, agnostic=opt.agnostic_nms)
         t3 = time_synchronized()
 
         # Apply Classifier
         if classify:
             pred = apply_classifier(pred, modelc, img, im0s)
+        
+        if use_second_model:
+            pred = [torch.cat((pred[0], pred_second[0]))]
 
         # Process detections
         for i, det in enumerate(pred):  # detections per image
