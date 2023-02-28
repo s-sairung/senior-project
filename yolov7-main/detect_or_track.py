@@ -70,11 +70,13 @@ def detect(save_img=False):
 
     if trace:
         model = TracedModel(model, device, opt.img_size)
-        if use_second_model: model_second = TracedModel(model_second, device, opt.img_size)
+        if use_second_model:
+            model_second = TracedModel(model_second, device, opt.img_size)
 
     if half:
         model.half()  # to FP16
-        if use_second_model: model_second.half()
+        if use_second_model:
+            model_second.half()
 
     # Second-stage classifier
     classify = False
@@ -102,7 +104,8 @@ def detect(save_img=False):
     # Run inference
     if device.type != 'cpu':
         model(torch.zeros(1, 3, imgsz, imgsz).to(device).type_as(next(model.parameters())))  # run once
-        if use_second_model: model_second(torch.zeros(1, 3, imgsz, imgsz).to(device).type_as(next(model.parameters()))) 
+        if use_second_model:
+            model_second(torch.zeros(1, 3, imgsz, imgsz).to(device).type_as(next(model_second.parameters()))) 
     old_img_w = old_img_h = imgsz
     old_img_b = 1
 
@@ -124,7 +127,8 @@ def detect(save_img=False):
             old_img_w = img.shape[3]
             for i in range(3):
                 model(img, augment=opt.augment)[0]
-                if use_second_model: model_second(img, augment=opt.augment)[0]
+                if use_second_model:
+                    model_second(img, augment=opt.augment)[0]
 
         # Inference
         t1 = time_synchronized()
@@ -134,7 +138,8 @@ def detect(save_img=False):
 
         # Apply NMS
         pred = non_max_suppression(pred, opt.conf_thres, opt.iou_thres, classes=opt.classes, agnostic=opt.agnostic_nms)
-        if use_second_model: pred_second = non_max_suppression(pred_second, opt.conf_thres, opt.iou_thres, classes=opt.classes, agnostic=opt.agnostic_nms)
+        if use_second_model:
+            pred_second = non_max_suppression(pred_second, opt.conf_thres, opt.iou_thres, classes=opt.classes, agnostic=opt.agnostic_nms)
         t3 = time_synchronized()
 
         # Apply Classifier
