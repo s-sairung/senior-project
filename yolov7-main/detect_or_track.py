@@ -265,6 +265,8 @@ if __name__ == '__main__':
     parser.add_argument('--nolabel', action='store_true', help='don`t show label')
     parser.add_argument('--unique-track-color', action='store_true', help='show each track in unique color')
 
+    parser.add_argument('--second-model', action='store_true', help='use second model to help combine results with yolo')
+    parser.add_argument('--second-model-weights', nargs='+', type=str, default='yolov7.pt', help='model.pt path(s) for second model')
 
     opt = parser.parse_args()
     print(opt)
