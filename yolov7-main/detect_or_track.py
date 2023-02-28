@@ -206,7 +206,7 @@ def detect(save_img=False):
             #######################################################
             if view_img:
                 cv2.imshow(str(p), im0)
-                cv2.waitKey(1)  # 1 millisecond
+                cv2.waitKey(int(not opt.pause_frame)) # if pause_frame: 0 (forever) else: 1 (1 ms)
 
             # Save results (image with detections)
             if save_img:
@@ -265,8 +265,11 @@ if __name__ == '__main__':
     parser.add_argument('--nolabel', action='store_true', help='don`t show label')
     parser.add_argument('--unique-track-color', action='store_true', help='show each track in unique color')
 
+    parser.add_argument('--pause-frame', action='store_true', help='pause each frame')
+    
     parser.add_argument('--second-model', action='store_true', help='use second model to help combine results with yolo')
     parser.add_argument('--second-model-weights', nargs='+', type=str, default='yolov7.pt', help='model.pt path(s) for second model')
+    
 
     opt = parser.parse_args()
     print(opt)
