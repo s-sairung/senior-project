@@ -159,8 +159,71 @@ def detect(save_img=False):
                 if opt.track:
   
                     tracked_dets = sort_tracker.update(dets_to_sort, opt.unique_track_color)
+                    '''
+                        tracked_dets is already predicted 1 frame ahead.
+                        So what if I can feed them back to do further frame ahead?
+
+                        tracked_dets and dets_to_sort aren't the same structure, should I be worrying?
+
+                        dets_to_sort = [[x11, y11, x12, y12, conf1, class1],
+                                        [x21, y21, x22, y22, conf2, class2],
+                                            .   .   .   .   .   .   .   .
+                                            .   .   .   .   .   .   .   .
+                                        [xk1, yk1, xk2, yk2, confk, classk]]
+                            *sort by conf, high -> low*
+
+                        whereas,                
+                        tracked_dets = [[xm1, ym1, xm2, ym2, classm, um, vm, sm, labelm],
+                                        [x(m-1)1, y(m-1)1, x(m-1)2, y(m-1)2, class(m-1), u(m-1), v(m-1), s(m-1), label(m-1)],
+                                            .   .   .   .   .   .   .   .   .   .   .
+                                            .   .   .   .   .   .   .   .   .   .   .
+                                        [x11, y11, x12, y12, class1, u1, v1, s1, label1]]
+                            *sort by label, high -> low*
+                                        
+                        We don't care sh*t about u,v or s, so we can throw them away.
+                        But conf? yeah I think we should. But how?
+
+                        Let's start the test by giving them 0.
+                    
+                    loop = 1
+                    while(loop < 2):
+                        rec_dets_to_sort = []
+                        ic(len(tracked_dets))
+                        rec_det = []
+                        for tracked_det in tracked_dets:
+                            rec_det = np.concatenate((tracked_det[:3], [0.]), axis = None)
+                            rec_det = np.concatenate((rec_det, tracked_det[4]), axis = None)
+                            rec_dets_to_sort = np.append(rec_dets_to_sort, [rec_det], axis = 0)
+                        ic(dets_to_sort)
+                        ic(tracked_dets)
+                        ic(rec_dets_to_sort)
+                        #rec_tracked_dets = sort_tracker.update(rec_dets_to_sort, opt.unique_track_color)
+                        loop += 1
+                    #ic(rec_tracked_dets)
+                    '''
+
+
+                    '''
+                        Up Above is an unsuccessful attempts, I will try another way.
+                        Rather, I'll use the tracked bboxes and feed them into my own linear regression method
+                        Using the advance of labeled bbox for tracked objects
+
+                        for each bbox from tracked_dets:
+                        if it has been registed into regression_dets list, it will update the regression bbox
+                        if not, it will create new regression object and registered it into regression_dets
+
+                        regression_dets = []
+                        for bbox in tracked_dets:
+                            bbox_id = bbox[-1]
+                            if bbox_id not in regression_dets:
+                                regression_bbox = linear_prediction(bbox)
+                                regression_dets.append(bbox_id)
+                            else:
+                                regression_dets[bbox_id - 1].update(bbox)
+                    '''
                     tracks =sort_tracker.getTrackers()
-                    ic(tracked_dets) # TODO: Find out the meaning of values in array
+                    #ic(tracked_dets) # TODO: Find out the meaning of values in array
+                    #ic(dets_to_sort)
                     # print("tracks")
                     # [ic(tr.history) for tr in tracks]
 
