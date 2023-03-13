@@ -16,6 +16,7 @@ from utils.plots import plot_one_box
 from utils.torch_utils import select_device, load_classifier, time_synchronized, TracedModel
 
 from sort import *
+from linear_prediction import *
 
 
 """Function to Draw Bounding boxes"""
@@ -212,20 +213,48 @@ def detect(save_img=False):
                         if it has been registed into regression_dets list, it will update the regression bbox
                         if not, it will create new regression object and registered it into regression_dets
 
-                        regression_dets = []
-                        for bbox in tracked_dets:
-                            bbox_id = bbox[-1]
-                            if bbox_id not in regression_dets:
-                                regression_bbox = linear_prediction(bbox)
-                                regression_dets.append(bbox_id)
+                    '''
+
+                    '''
+                        regression_dets:    array that stores the bbox objects from class PredictionBox
+                        regerssion_id:      array that stores the bbox_id (bbox_label)
+                        predicted_dets:     array that stores the predicted bbox from regression
+                        predicted_id:      array that stores the bbox_id (bbox_label)
+
+                        [!!!WARNING!!!] This area is still in development, expected the worst as of now!!!
+                    '''
+                    regression_dets = []
+                    regression_id = []
+                    predicted_dets = []
+                    predicted_id = []
+                    frames_ahead = 30 # dynamic variable: EDIT here!! for inter/extrapolation
+
+                    for bbox in tracked_dets:
+                        bbox_id = bbox[-1]
+                        if bbox_id not in regression_id:
+                            regression_box = PredictionBox(bbox, frame)
+                            regression_dets.append(regression_box)
+                            regression_id.append(regression_box.id)
+                        else:
+                            regression_dets[regression_id.index(regression_box.id)].update(bbox, frame)
+
+                    for regression_box in regression_dets:
+                        prediction = regression_box.predict_ahead(frames_ahead)
+                        if(prediction != -1):                     # -1 means the box has yet reach the minimum frames threshold
+                            if(prediction.id not in predicted_id):
+                                predicted_dets.append(prediction)
+                                predicted_id.append(prediction.id)
                             else:
-                                regression_dets[bbox_id - 1].update(bbox)
+                                predicted_dets[predicted_id.index(prediction.id)] = prediction
+                    
+                    '''
+                        [End of Construction Site]
                     '''
                     tracks =sort_tracker.getTrackers()
                     #ic(tracked_dets) # TODO: Find out the meaning of values in array
                     #ic(dets_to_sort)
-                    # print("tracks")
-                    # [ic(tr.history) for tr in tracks]
+                    #print("tracks")
+                    #[ic(tr.history) for tr in tracks]
 
                     # draw boxes for visualization
                     if len(tracked_dets)>0:
