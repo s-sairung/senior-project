@@ -19,6 +19,7 @@ from sort import *
 from linear_prediction import *
 
 
+
 """Function to Draw Bounding boxes"""
 def draw_boxes(img, bbox, identities=None, categories=None, confidences = None, names=None, colors = None):
     for i, box in enumerate(bbox):
@@ -45,7 +46,91 @@ def draw_boxes(img, bbox, identities=None, categories=None, confidences = None, 
 
     return img
 
+'''
+    regression_dets:    array that stores the bbox objects from class PredictionBox
+    regerssion_id:      array that stores the bbox_id (bbox_label)
+    predicted_dets:     array that stores the predicted bbox from regression
+    predicted_id:      array that stores the bbox_id (bbox_label)
 
+        [!!!WARNING!!!] This area is still in development, expected the worst as of now!!!
+'''
+regression_dets = []
+regression_id = []
+
+def regression(bbox, frame):
+    frames_ahead = 30 # dynamic variable: EDIT here!! for inter/extrapolation
+
+    bbox_id = bbox[-1]
+
+    #ic(bbox_id, regression_id)
+    #ic(bbox_id not in regression_id)
+
+    if bbox_id not in regression_id:
+        regression_box = PredictionBox(bbox, frame)
+        regression_dets.append(regression_box)
+        regression_id.append(regression_box.id)
+    else:
+        regression_dets[regression_id.index(bbox_id)].update(bbox, frame)
+
+    '''
+        ========= [Debugging Section] ======== [1/2]
+                        
+    print("Status of the Regression box")
+    ic([regression_box.id, regression_box.times_tracked, regression_box.x, regression_box.y])
+    ic(regression_box.frames)
+    ic(regression_box.trajectories)
+    ic(regression_box.scales)
+
+    #    ====== [End of Debugging Section] =====
+    '''
+    predicted_dets = []
+    predicted_id = []
+
+    for regression_box in regression_dets:
+        prediction = regression_box.predict_ahead(frames_ahead)
+        # prediction: [id, frames_ahead, (x, y), (xc, yc), delta_scale]
+
+        #print("Ready to be predicted: " + str(prediction != -1))
+        if(prediction != -1):                     # -1 means the box has yet reach the minimum frames threshold
+            id = prediction[0]
+            if(id not in predicted_id):
+                predicted_dets.append(prediction)
+                predicted_id.append(id)
+            else:
+                predicted_dets[predicted_id.index(id)] = prediction
+
+            '''
+                ========= [Debugging Section] ======== [2/2]
+                       
+            predicted_frame = prediction[1]
+
+            width_height = prediction[2]
+            width = width_height[0]
+            height = width_height[1]
+
+            offset_x = width/2
+            offset_y = height/2
+
+            centroid = prediction[3]
+            xc = centroid[0]
+            yc = centroid[1]
+                        
+            scale_change = prediction[-1]
+
+            pred_x1 = xc - offset_x
+            pred_y1 = yc + offset_y
+            pred_x2 = xc + offset_x
+            pred_y2 = yc - offset_y
+
+            print("Status of the Prediction box")
+            ic([id, predicted_frame, pred_x1, pred_y1, pred_x2, pred_y2, scale_change])
+            ''' 
+            #    ====== [End of Debugging Section] =====          
+            
+    '''
+        [End of Construction Site]
+    '''
+    
 def detect(save_img=False):
     source, weights, view_img, save_txt, imgsz, trace = opt.source, opt.weights, opt.view_img, opt.save_txt, opt.img_size, not opt.no_trace
     save_img = not opt.nosave and not source.endswith('.txt')  # save inference images
@@ -215,41 +300,9 @@ def detect(save_img=False):
 
                     '''
 
-                    '''
-                        regression_dets:    array that stores the bbox objects from class PredictionBox
-                        regerssion_id:      array that stores the bbox_id (bbox_label)
-                        predicted_dets:     array that stores the predicted bbox from regression
-                        predicted_id:      array that stores the bbox_id (bbox_label)
-
-                        [!!!WARNING!!!] This area is still in development, expected the worst as of now!!!
-                    '''
-                    regression_dets = []
-                    regression_id = []
-                    predicted_dets = []
-                    predicted_id = []
-                    frames_ahead = 30 # dynamic variable: EDIT here!! for inter/extrapolation
-
                     for bbox in tracked_dets:
-                        bbox_id = bbox[-1]
-                        if bbox_id not in regression_id:
-                            regression_box = PredictionBox(bbox, frame)
-                            regression_dets.append(regression_box)
-                            regression_id.append(regression_box.id)
-                        else:
-                            regression_dets[regression_id.index(regression_box.id)].update(bbox, frame)
-
-                    for regression_box in regression_dets:
-                        prediction = regression_box.predict_ahead(frames_ahead)
-                        if(prediction != -1):                     # -1 means the box has yet reach the minimum frames threshold
-                            if(prediction.id not in predicted_id):
-                                predicted_dets.append(prediction)
-                                predicted_id.append(prediction.id)
-                            else:
-                                predicted_dets[predicted_id.index(prediction.id)] = prediction
+                        regression(bbox, frame)
                     
-                    '''
-                        [End of Construction Site]
-                    '''
                     tracks =sort_tracker.getTrackers()
                     #ic(tracked_dets) # TODO: Find out the meaning of values in array
                     #ic(dets_to_sort)
@@ -383,3 +436,5 @@ if __name__ == '__main__':
                 strip_optimizer(opt.weights)
         else:
             detect()
+
+
