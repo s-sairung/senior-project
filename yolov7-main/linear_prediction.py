@@ -189,12 +189,12 @@ class PredictionBox(object):
 
         '''
             ========= [Debugging Section] ======== [1/1]
-        
+        '''
         print("Predict result")
         ic(self.id, self.frames[-1], self.frames[-1] + frames_ahead)
         ic([cen_x[-1], cen_y[-1]], [centroid_x_pred, centroid_y_pred])
         ic(self.scales[-1], scale_pred, delta_scale)
-        '''
+        
         #    ====== [End of Debugging Section] =====
 
         return (prediction)

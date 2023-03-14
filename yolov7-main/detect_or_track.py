@@ -58,7 +58,6 @@ regression_dets = []
 regression_id = []
 
 def regression(bbox, frame):
-    frames_ahead = 30 # dynamic variable: EDIT here!! for inter/extrapolation
 
     bbox_id = bbox[-1]
 
@@ -83,9 +82,10 @@ def regression(bbox, frame):
 
     #    ====== [End of Debugging Section] =====
     '''
-    predicted_dets = []
-    predicted_id = []
+predicted_dets = []
+predicted_id = []
 
+def regression_prediction(frames_ahead):
     for regression_box in regression_dets:
         prediction = regression_box.predict_ahead(frames_ahead)
         # prediction: [id, frames_ahead, (x, y), (xc, yc), delta_scale]
@@ -300,8 +300,10 @@ def detect(save_img=False):
 
                     '''
 
+                    frames_ahead = 30 # dynamic variable: EDIT here!! for inter/extrapolation
                     for bbox in tracked_dets:
                         regression(bbox, frame)
+                    regression_prediction(frames_ahead)
                     
                     tracks =sort_tracker.getTrackers()
                     #ic(tracked_dets) # TODO: Find out the meaning of values in array
