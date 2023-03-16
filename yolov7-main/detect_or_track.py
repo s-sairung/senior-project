@@ -79,18 +79,17 @@ def regression(bbox, frame):
     ic(regression_box.frames)
     ic(regression_box.trajectories)
     ic(regression_box.scales)
-
-    #    ====== [End of Debugging Section] =====
     '''
+    #    ====== [End of Debugging Section] =====
+    
 predicted_dets = []
 predicted_id = []
 
 def regression_prediction(frames_ahead):
     for regression_box in regression_dets:
         prediction = regression_box.predict_ahead(frames_ahead)
-        # prediction: [id, frames_ahead, (x, y), (xc, yc), delta_scale]
+        # prediction: [id, frames_ahead, (width, height), (xc, yc), trajectory, delta_scale]
 
-        #print("Ready to be predicted: " + str(prediction != -1))
         if(prediction != -1):                     # -1 means the box has yet reach the minimum frames threshold
             id = prediction[0]
             if(id not in predicted_id):
@@ -108,19 +107,11 @@ def regression_prediction(frames_ahead):
             width = width_height[0]
             height = width_height[1]
 
-            offset_x = width/2
-            offset_y = height/2
-
             centroid = prediction[3]
             xc = centroid[0]
             yc = centroid[1]
                         
             scale_change = prediction[-1]
-
-            pred_x1 = xc - offset_x
-            pred_y1 = yc + offset_y
-            pred_x2 = xc + offset_x
-            pred_y2 = yc - offset_y
 
             print("Status of the Prediction box")
             ic([id, predicted_frame, pred_x1, pred_y1, pred_x2, pred_y2, scale_change])
