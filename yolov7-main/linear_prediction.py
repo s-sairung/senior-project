@@ -206,7 +206,12 @@ class PredictionBox(object):
         pred_y2 = centroid_y_pred - offset_y
 
         # Clip the diagonal line
-        pred_x1, pred_y1, pred_x2, pred_y2, self.status = self.line_clip(pred_x1, pred_y1, pred_x2, pred_y2)
+        clipped = self.line_clip(pred_x1, pred_y1, pred_x2, pred_y2)
+        pred_x1 = clipped[0]
+        pred_y1 = clipped[1]
+        pred_x2 = clipped[2]
+        pred_y2 = clipped[3] 
+        self.status = clipped[4]
 
         if(self.status == 2): #This will also affect the Scale and centroid of the object
             dx = abs(pred_x1 - pred_x2)
@@ -264,17 +269,18 @@ class PredictionBox(object):
 
         '''
             ========= [Debugging Section] ======== [1/1]
-        
+        '''
         print("Predict result")
         ic(self.id, self.frames[-1], self.frames[-1] + frames_ahead)
+        ic([pred_x1, pred_y1, pred_x2, pred_y2])
         ic([cen_x[-1], cen_y[-1]], [centroid_x_pred, centroid_y_pred], trajectory)
         ic(self.scales[-1], scale_pred, delta_scale)
-        '''
+        
         #    ====== [End of Debugging Section] =====
 
         return (prediction)
     
-    def line_clip(x1, y1, x2, y2):
+    def line_clip(self, x1, y1, x2, y2):
         '''
             At first I would like to do Liang-Barsky algorithm, but it will deform the box
             So, I'll use Cohen-Sutherland Algorithm instead
@@ -329,14 +335,14 @@ class PredictionBox(object):
 
         for i in range(4):
             if (code1[i] == code2[i] == "1"): # Completely out of bounds if there is '1' in the same bit position
-                return(x1, y1, x2, y2, 1)
+                return([x1, y1, x2, y2, 1])
 
         if (code1 == "1001" and code2 == "0110"): # Cover the entire bounds
             x1 = y1 = xwmin
             x2 = xwmax
             y2 = ywmax
         elif (code1 == code2 == "0000"): # Completely Inside every boundaries
-            return (x1, y1, x2, y2, 0)
+            return ([x1, y1, x2, y2, 0])
         else:
             for i in range(4):
                 if (code1[i] == "1"):
@@ -349,4 +355,4 @@ class PredictionBox(object):
                     elif(i == 1): x2 = xwmax
                     elif(i == 2): y2 = ywmax
                     else: y2 = 0
-        return (x1, y1, x2, y2, 2)
+        return ([x1, y1, x2, y2, 2])
