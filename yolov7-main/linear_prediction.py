@@ -102,43 +102,39 @@ class PredictionBox(object):
 
         '''
             ========= [Debugging Section] ======== [1/2]
-        
+        '''
         print("Before update")
         ic([self.id, self.times_tracked, self.x, self.y])
         ic(self.frames)
         ic(self.trajectories)
         ic(self.scales)
-        '''
+        
         #    ====== [End of Debugging Section] =====
         
 
         self.x = new_x
         self.y = new_y
 
-        #Condition events If -> add new, else -> overwrite
-        if(self.times_tracked < self.frames_cap):
-            self.scales.append(new_scale)
-            self.frames.append(frame)
-            self.trajectories.append(newCentroidarr)
-            self.times_tracked += 1
-        else:
+        #Condition event: If reach cap, will pop first and then add normally
+        if(self.times_tracked >= self.frames_cap):
             self.scales.pop(0)
-            self.scales.append(new_scale)
             self.frames.pop(0)
-            self.frames.append(frame)
             self.trajectories.pop(0)
-            self.trajectories.append(newCentroidarr)
-            self.times_tracked += 1
+
+        self.scales.append(new_scale)
+        self.frames.append(frame)
+        self.trajectories.append(newCentroidarr)
+        self.times_tracked += 1
 
         '''
             ========= [Debugging Section] ======== [2/2]
-        
+        '''
         print("After update")
         ic([self.id, self.times_tracked, self.x, self.y])
         ic(self.frames)
         ic(self.trajectories)
         ic(self.scales)
-        '''
+        
         #    ====== [End of Debugging Section] =====
             
     '''
@@ -215,13 +211,13 @@ class PredictionBox(object):
 
         '''
             ========= [Debugging Section] ======== [1/2]
-        '''
+        
         print("First Predict result")
         ic(self.id, current_frame, current_frame + frames_ahead)
         ic([pred_x1, pred_y1, pred_x2, pred_y2], self.status)
         ic([current_cen_x, current_cen_y], [centroid_x_pred, centroid_y_pred])
         ic(current_scale, scale_pred)
-        
+        '''
         #    ====== [End of Debugging Section] =====
 
         # Clip the diagonal line to be within the video boundaries
@@ -256,13 +252,13 @@ class PredictionBox(object):
 
         '''
             ========= [Debugging Section] ======== [2/2]
-        '''
+        
         print("Final Predict result")
         ic(self.id, current_frame, current_frame + frames_ahead)
         ic([pred_x1, pred_y1, pred_x2, pred_y2], self.status)
         ic([current_cen_x, current_cen_y], [centroid_x_pred, centroid_y_pred], trajectory)
         ic(current_scale, scale_pred, delta_scale)
-        
+        '''
         #    ====== [End of Debugging Section] =====
 
         return (prediction)
