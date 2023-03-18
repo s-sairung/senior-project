@@ -78,6 +78,7 @@ class PredictionBox(object):
         '''
 
     '''
+        [Function Descrisption]
         ----- Updating the object with new information -----
         With condition of whether the object has reached its capacity or not
         
@@ -141,6 +142,7 @@ class PredictionBox(object):
         #    ====== [End of Debugging Section] =====
             
     '''
+        [Function Descrisption]
         ----- Predicting the object whereabout from its stored informations -----
         With condition of whether the object has reached the minimum threshold or not
         
@@ -150,7 +152,7 @@ class PredictionBox(object):
 
     '''
 
-    def predict_ahead(self, frames_ahead):
+    def predict_ahead(self, frames_ahead, video_dimension):
 
         decimal_points = 4             # [EDIT HERE!!]: number of float decimals [3/3]   
 
@@ -194,26 +196,43 @@ class PredictionBox(object):
         scale_pred = round(scale_pred[0], decimal_points)
 
         # calculate into more meaningful and easier to understand
-        delta_x = round(centroid_x_pred - cen_x[-1], decimal_points)
-        delta_y = round(centroid_y_pred - cen_y[-1], decimal_points)  
+        current_cen_x = cen_x[-1]
+        current_cen_y = cen_y[-1]
+        current_scale = self.scales[-1]
+        current_frame = self.frames[-1]
+
+        delta_x = round(centroid_x_pred - current_cen_x, decimal_points)
+        delta_y = round(centroid_y_pred - current_cen_y, decimal_points)  
 
         offset_x = self.x + delta_x/2
         offset_y = self.y + delta_y/2
 
-        pred_x1 = centroid_x_pred - offset_x
-        pred_y1 = centroid_y_pred + offset_y
-        pred_x2 = centroid_x_pred + offset_x
-        pred_y2 = centroid_y_pred - offset_y
+        #Transforming our data into the traditional ones: (x1,y1) at top left and (x2, y2) at bottom right
+        pred_x1 = round(centroid_x_pred - offset_x, decimal_points)
+        pred_y1 = round(centroid_y_pred - offset_y, decimal_points)
+        pred_x2 = round(centroid_x_pred + offset_x, decimal_points)
+        pred_y2 = round(centroid_y_pred + offset_y, decimal_points)
 
-        # Clip the diagonal line
-        clipped = self.line_clip(pred_x1, pred_y1, pred_x2, pred_y2)
+        '''
+            ========= [Debugging Section] ======== [1/2]
+        '''
+        print("First Predict result")
+        ic(self.id, current_frame, current_frame + frames_ahead)
+        ic([pred_x1, pred_y1, pred_x2, pred_y2], self.status)
+        ic([current_cen_x, current_cen_y], [centroid_x_pred, centroid_y_pred])
+        ic(current_scale, scale_pred)
+        
+        #    ====== [End of Debugging Section] =====
+
+        # Clip the diagonal line to be within the video boundaries
+        clipped = self.line_clip(pred_x1, pred_y1, pred_x2, pred_y2, video_dimension[0], video_dimension[1])
         pred_x1 = clipped[0]
         pred_y1 = clipped[1]
         pred_x2 = clipped[2]
         pred_y2 = clipped[3] 
         self.status = clipped[4]
 
-        if(self.status == 2): #This will also affect the Scale and centroid of the object
+        if(self.status == 2): #This will also affect the Scale and the Centroid of the object
             dx = abs(pred_x1 - pred_x2)
             dy = abs(pred_y1 - pred_y2)
             sum_x = pred_x1 + pred_x2
@@ -223,71 +242,50 @@ class PredictionBox(object):
             centroid_x_pred = round((sum_x/2), decimal_points)
             centroid_y_pred = round((sum_y/2), decimal_points)
 
-            delta_x = round(centroid_x_pred - cen_x[-1], decimal_points)
-            delta_y = round(centroid_y_pred - cen_y[-1], decimal_points)
-
-        '''
-        #Identifying Anomaly
-        #Case 1: Bounding box is out of picture area
-        x1_out = y1_out = x2_out = y2_out = False
-        
-        #Case 1.1: Completely out of bound -> I won't change anything here, since we won't draw that anyways
-        if(pred_x1 < 0): x1_out = True
-        if(pred_y1 < 0): y1_out = True
-        if(pred_x2 < 0): x2_out = True
-        if(pred_y2 < 0): y2_out = True
-        if(centroid_x_pred < 0 and centroid_y_pred < 0): cen_out = True     #<<< This is indicator whether we will still can see the object
-
-        completely_out = x1_out and x2_out and y1_out and y2_out and cen_out
-
-        if(completely_out): 
-            self.status = 1   
-        
-        else:   #Case 1.2: Partly out of bound. The clip_line will take care for 
-            #This will also affect the Scale and centroid of the object
-            dx = abs(pred_x1 - pred_x2)
-            dy = abs(pred_y1 - pred_y2)
-            sum_x = pred_x1 + pred_x2
-            sum_y = pred_y1 + pred_y2           
-
-            scale_pred = round((dx * dy), decimal_points)
-            centroid_x_pred = round((sum_x/2), decimal_points)
-            centroid_y_pred = round((sum_y/2), decimal_points)
-
-            delta_x = round(centroid_x_pred - cen_x[-1], decimal_points)
-            delta_y = round(centroid_y_pred - cen_y[-1], decimal_points)
-        '''
+            delta_x = round(centroid_x_pred - current_cen_x, decimal_points)
+            delta_y = round(centroid_y_pred - current_cen_y, decimal_points)
 
         trajectory = [delta_x, delta_y]
 
-        pred_coordinate = [self.x + delta_x, self.y + delta_y]
+        pred_xy = [self.x + delta_x, self.y + delta_y]
         pred_centroid = [centroid_x_pred, centroid_y_pred]
 
-        delta_scale = round(scale_pred - self.scales[-1], decimal_points)
+        delta_scale = round(scale_pred - current_scale, decimal_points)
 
-        prediction = [self.id, self.frames[-1] + frames_ahead, pred_coordinate, pred_centroid, trajectory, delta_scale]
+        prediction = [self.id, current_frame + frames_ahead, pred_xy, pred_centroid, trajectory, delta_scale]
 
         '''
-            ========= [Debugging Section] ======== [1/1]
+            ========= [Debugging Section] ======== [2/2]
         '''
-        print("Predict result")
-        ic(self.id, self.frames[-1], self.frames[-1] + frames_ahead)
-        ic([pred_x1, pred_y1, pred_x2, pred_y2])
-        ic([cen_x[-1], cen_y[-1]], [centroid_x_pred, centroid_y_pred], trajectory)
-        ic(self.scales[-1], scale_pred, delta_scale)
+        print("Final Predict result")
+        ic(self.id, current_frame, current_frame + frames_ahead)
+        ic([pred_x1, pred_y1, pred_x2, pred_y2], self.status)
+        ic([current_cen_x, current_cen_y], [centroid_x_pred, centroid_y_pred], trajectory)
+        ic(current_scale, scale_pred, delta_scale)
         
         #    ====== [End of Debugging Section] =====
 
         return (prediction)
     
-    def line_clip(self, x1, y1, x2, y2):
+    def line_clip(self, x1, y1, x2, y2, xwmax, ywmax):
         '''
             At first I would like to do Liang-Barsky algorithm, but it will deform the box
             So, I'll use Cohen-Sutherland Algorithm instead
+
+                                    |                   |
+                        1001        |       1000        |       1010
+                                    |                   |
+                 _____________(0, 0)|___________________|___________________
+                                    |                   |
+                                    |   (Clip window)   |
+                        0001        |       0000        |       0010
+                 ___________________|___________________|___________________
+                                    |                   |(xwmax, ywmax)
+                                    |                   |
+                        0101        |       0100        |       0110
+                                    |                   |
         '''
         xwmin = ywmin = 0
-        xwmax = 1920
-        ywmax = 1080        #Video dimension too lazy to extract from source video ><
 
         if(x1 < xwmin):
             if(y1 < ywmin):
@@ -333,26 +331,35 @@ class PredictionBox(object):
             else:
                 code2 = "0000"
 
+        '''
+            ========= [Debugging Section] ======== [1/1]
+        
+        ic([xwmax, ywmax])
+        ic([[x1, y1], code1])
+        ic([[x2, y2], code2])
+        '''
+        #    ====== [End of Debugging Section] =====    
+
         for i in range(4):
             if (code1[i] == code2[i] == "1"): # Completely out of bounds if there is '1' in the same bit position
                 return([x1, y1, x2, y2, 1])
 
-        if (code1 == "1001" and code2 == "0110"): # Cover the entire bounds
+        if (code1 == "1001" and code2 == "0110"): # Cover the entire frame
             x1 = y1 = xwmin
             x2 = xwmax
             y2 = ywmax
         elif (code1 == code2 == "0000"): # Completely Inside every boundaries
             return ([x1, y1, x2, y2, 0])
         else:
-            for i in range(4):
+            for i in range(4): # top bottom right left
                 if (code1[i] == "1"):
-                    if(i == 0): x1 = 0
-                    elif(i == 1): x1 = xwmax
-                    elif(i == 2): y1 = ywmax
-                    else: y1 = 0
+                    if(i == 0): y1 = 0
+                    elif(i == 1): y1 = ywmax
+                    elif(i == 2): x1 = xwmax
+                    else: x1 = 0
                 if (code2[i] == "1"):
-                    if(i == 0): x2 = 0
-                    elif(i == 1): x2 = xwmax
-                    elif(i == 2): y2 = ywmax
-                    else: y2 = 0
+                    if(i == 0): y2 = 0
+                    elif(i == 1): y2 = ywmax
+                    elif(i == 2): x2 = xwmax
+                    else: x2 = 0
         return ([x1, y1, x2, y2, 2])

@@ -47,6 +47,8 @@ def draw_boxes(img, bbox, identities=None, categories=None, confidences = None, 
     return img
 
 '''
+    [Construction Site Ahead] [1/2]
+
     regression_dets:    array that stores the bbox objects from class PredictionBox
     regerssion_id:      array that stores the bbox_id (bbox_label)
     predicted_dets:     array that stores the predicted bbox from regression
@@ -85,9 +87,9 @@ def regression(bbox, frame):
 predicted_dets = []
 predicted_id = []
 
-def regression_prediction(frames_ahead):
+def regression_prediction(frames_ahead, video_dimension):
     for regression_box in regression_dets:
-        prediction = regression_box.predict_ahead(frames_ahead)
+        prediction = regression_box.predict_ahead(frames_ahead, video_dimension)
         # prediction: [id, frames_ahead, (width, height), (xc, yc), trajectory, delta_scale]
 
         if(prediction != -1):                     # -1 means the box has yet reach the minimum frames threshold
@@ -116,8 +118,13 @@ def regression_prediction(frames_ahead):
             print("Status of the Prediction box")
             ic([id, predicted_frame, pred_x1, pred_y1, pred_x2, pred_y2, scale_change])
             ''' 
-            #    ====== [End of Debugging Section] =====          
-            
+            #    ====== [End of Debugging Section] =====
+        
+
+def regression_analyzer (ground_truth_bbox, predicted_bbox, frames_ahead):
+
+    
+
     '''
         [End of Construction Site]
     '''
@@ -256,45 +263,24 @@ def detect(save_img=False):
                                             .   .   .   .   .   .   .   .   .   .   .
                                         [x11, y11, x12, y12, class1, u1, v1, s1, label1]]
                             *sort by label, high -> low*
-                                        
-                        We don't care sh*t about u,v or s, so we can throw them away.
-                        But conf? yeah I think we should. But how?
-
-                        Let's start the test by giving them 0.
-                    
-                    loop = 1
-                    while(loop < 2):
-                        rec_dets_to_sort = []
-                        ic(len(tracked_dets))
-                        rec_det = []
-                        for tracked_det in tracked_dets:
-                            rec_det = np.concatenate((tracked_det[:3], [0.]), axis = None)
-                            rec_det = np.concatenate((rec_det, tracked_det[4]), axis = None)
-                            rec_dets_to_sort = np.append(rec_dets_to_sort, [rec_det], axis = 0)
-                        ic(dets_to_sort)
-                        ic(tracked_dets)
-                        ic(rec_dets_to_sort)
-                        #rec_tracked_dets = sort_tracker.update(rec_dets_to_sort, opt.unique_track_color)
-                        loop += 1
-                    #ic(rec_tracked_dets)
                     '''
 
-
                     '''
-                        Up Above is an unsuccessful attempts, I will try another way.
-                        Rather, I'll use the tracked bboxes and feed them into my own linear regression method
-                        Using the advance of labeled bbox for tracked objects
-
-                        for each bbox from tracked_dets:
-                        if it has been registed into regression_dets list, it will update the regression bbox
-                        if not, it will create new regression object and registered it into regression_dets
-
+                        [Construction Site Ahead] [2/2]
                     '''
+                    video_width = int(vid_cap.get(cv2.CAP_PROP_FRAME_WIDTH))
+                    video_height = int(vid_cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
+                    #ic([video_width, video_height])
 
-                    frames_ahead = 30 # dynamic variable: EDIT here!! for inter/extrapolation
+                    frames_ahead = 30               # [EDIT here!!] for inter/extrapolation
                     for bbox in tracked_dets:
                         regression(bbox, frame)
-                    regression_prediction(frames_ahead)
+                    regression_prediction(frames_ahead, [video_width, video_height])
+                    
+
+                    '''
+                        [End of Construction Site]
+                    '''
                     
                     tracks =sort_tracker.getTrackers()
                     #ic(tracked_dets) # TODO: Find out the meaning of values in array
