@@ -1,6 +1,7 @@
 from icecream import ic
 import numpy as np
 from sklearn.linear_model import LinearRegression
+import math
 
 class PredictionBox(object):
 
@@ -19,10 +20,11 @@ class PredictionBox(object):
                 |_______________________________|
             (0, 0)    
 
-        [STATIC VALUE]  id:                 Is a label of bbox (from object detection)                          
-                        scale:              Is an area of bbox
-                        frames:             Is a frames of the object that got detected (Form the footage)
-        [STATIC VALUE]  frames_cap:        Is a maximum number of frames that will be stored in the object     
+        [STATIC VALUE]  id:                 Is a label of bbox (from object detection)
+                        widths:             Is a queue that store the bbox-width from each frame
+                        heights:            Is a queue that store the bbox-height from each frame
+                        frames:             Is a queue that store the frames of the object that got detected (Form the footage)
+        [STATIC VALUE]  frames_cap:         Is a maximum number of frames that will be stored in the object     
         [STATIC VALUE]  frames_threshold:   Is a minimum number of frames that required for prediction          
                         trajectories:       Is a queue that store the bbox centriods (world coordinates from real picture) for the last [frame_size] prior
                                             (I use queue becuase we can dequeue the oldest one out then put newest in for updated prediction)
@@ -33,6 +35,8 @@ class PredictionBox(object):
             1. Centroid of the object at next 'frames_ahead' frame
             2. Trajectory of the object at next 'frames_ahead' frame 
                 (In vector form from current frame to the predicted frame) [REMINDER] X-axis: left-to-right, Y-axis: top-to-bottom
+            3. Width and Height of the object at next 'frames_ahead' frame
+            4. Scale Factor for the object at next 'frames_ahead' frame from current frame 
     '''
 
     
@@ -50,10 +54,13 @@ class PredictionBox(object):
         self.frames_cap = 30                                        #[EDIT HERE] 
 
         self.id = bbox[-1]
+
         self.x = abs(round(bbox[0] - bbox[2], decimal_points))
         self.y = abs(round(bbox[1] - bbox[3], decimal_points))
-        self.scales = []
-        self.scales.append(round(self.x * self.y, decimal_points))
+        self.widths = []
+        self.heights = []
+        self.widths.append(self.x)
+        self.heights.append(self.y)
 
         self.frames = []
         self.frames.append(frame)
@@ -69,13 +76,15 @@ class PredictionBox(object):
             ========= [Debugging Section] ======== [1/1]
         
         print("Object Initialized.")
-        ic([self.id, self.times_tracked, self.x, self.y])
+        ic(self.id)
         ic(self.frames)
         ic(self.trajectories)
-        ic(self.scales)
-
-        #    ====== [End of Debugging Section] =====
+        ic(self.widths)
+        ic(self.heights)
+        ic(self.times_tracked)
         '''
+        #    ====== [End of Debugging Section] =====
+        
 
     '''
         [Function Descrisption]
@@ -98,17 +107,18 @@ class PredictionBox(object):
 
         new_x = abs(round(new_bbox[0] - new_bbox[2], decimal_points))
         new_y = abs(round(new_bbox[1] - new_bbox[3], decimal_points))
-        new_scale = round(new_x * new_y, decimal_points)
 
         '''
             ========= [Debugging Section] ======== [1/2]
-        '''
+        
         print("Before update")
-        ic([self.id, self.times_tracked, self.x, self.y])
+        ic(self.id)
         ic(self.frames)
         ic(self.trajectories)
-        ic(self.scales)
-        
+        ic(self.widths)
+        ic(self.heights)
+        ic(self.times_tracked)
+        '''
         #    ====== [End of Debugging Section] =====
         
 
@@ -117,24 +127,28 @@ class PredictionBox(object):
 
         #Condition event: If reach cap, will pop first and then add normally
         if(self.times_tracked >= self.frames_cap):
-            self.scales.pop(0)
+            self.widths.pop(0)
+            self.heights.pop(0)
             self.frames.pop(0)
             self.trajectories.pop(0)
 
-        self.scales.append(new_scale)
+        self.widths.append(new_x)
+        self.heights.append(new_y)
         self.frames.append(frame)
         self.trajectories.append(newCentroidarr)
         self.times_tracked += 1
 
         '''
             ========= [Debugging Section] ======== [2/2]
-        '''
+        
         print("After update")
-        ic([self.id, self.times_tracked, self.x, self.y])
+        ic(self.id)
         ic(self.frames)
         ic(self.trajectories)
-        ic(self.scales)
-        
+        ic(self.widths)
+        ic(self.heights)
+        ic(self.times_tracked)
+        '''
         #    ====== [End of Debugging Section] =====
             
     '''
@@ -165,58 +179,70 @@ class PredictionBox(object):
             cen_y.append(traj[1])
 
         #Scikit use numpy structure, so I'll change it into numpy.
-        frames, cen_x, cen_y, scales = np.array(self.frames).reshape(-1,1), np.array(cen_x), np.array(cen_y), np.array(self.scales)
+        frames, cen_x, cen_y, widths, heights = np.array(self.frames).reshape(-1,1), np.array(cen_x), np.array(cen_y), np.array(self.widths), np.array(self.heights)
 
         #Constructing with existed data model by using frame number as regressor and x, y, scale as respond
         model_centroid_x = LinearRegression().fit(frames, cen_x)
         model_centroid_y = LinearRegression().fit(frames, cen_y)
 
-        model_scale = LinearRegression().fit(frames, scales)
+        model_width = LinearRegression().fit(frames, widths)
+        model_height = LinearRegression().fit(frames, heights)
 
         ''' (Currently Useless)
         # coefficient of determination 
         r_sq_centroid_x = model_centroid_x.score(frames, cen_x)
         r_sq_centroid_y = model_centroid_y.score(frames, cen_y)
-        r_sq_scale = model_scale.score(frames, scales)
+        r_sq_width      = model_width.score(frames, widths)
+        r_sq_height     = model_width.score(frames, heights)
         '''
 
         # predictions
         pred_frame = np.array(frames[-1] + frames_ahead).reshape(1, -1)
 
-        centroid_x_pred = model_centroid_x.predict(pred_frame)
-        centroid_y_pred = model_centroid_y.predict(pred_frame)
-        scale_pred = model_scale.predict(pred_frame)                #Predicted Scale by this can be negative which make no sense to me
+        pred_centroid_x = model_centroid_x.predict(pred_frame)
+        pred_centroid_y = model_centroid_y.predict(pred_frame)
+        pred_width = model_width.predict(pred_frame)
+        pred_height = model_height.predict(pred_frame)
 
-        centroid_x_pred = round(centroid_x_pred[0], decimal_points)
-        centroid_y_pred = round(centroid_y_pred[0], decimal_points)
-        scale_pred = round(scale_pred[0], decimal_points)
+        pred_centroid_x = round(pred_centroid_x[0], decimal_points)
+        pred_centroid_y = round(pred_centroid_y[0], decimal_points)
+        pred_width      = round(pred_width[0], decimal_points)
+        pred_height      = round(pred_height[0], decimal_points)
 
         # calculate into more meaningful and easier to understand
         current_cen_x = cen_x[-1]
         current_cen_y = cen_y[-1]
-        current_scale = self.scales[-1]
         current_frame = self.frames[-1]
 
-        delta_x = round(centroid_x_pred - current_cen_x, decimal_points)
-        delta_y = round(centroid_y_pred - current_cen_y, decimal_points)  
+        offset_x = round(pred_width/2, decimal_points)
+        offset_y = round(pred_height/2, decimal_points)
 
-        offset_x = self.x + delta_x/2
-        offset_y = self.y + delta_y/2
+        delta_x = round(pred_centroid_x - current_cen_x, decimal_points)
+        delta_y = round(pred_centroid_y - current_cen_y, decimal_points)
+
+        pred_scale    = round(pred_width * pred_height, decimal_points)
 
         #Transforming our data into the traditional ones: (x1,y1) at top left and (x2, y2) at bottom right
-        pred_x1 = round(centroid_x_pred - offset_x, decimal_points)
-        pred_y1 = round(centroid_y_pred - offset_y, decimal_points)
-        pred_x2 = round(centroid_x_pred + offset_x, decimal_points)
-        pred_y2 = round(centroid_y_pred + offset_y, decimal_points)
+        pred_x1 = round(pred_centroid_x - offset_x, decimal_points)
+        pred_y1 = round(pred_centroid_y - offset_y, decimal_points)
+        pred_x2 = round(pred_centroid_x + offset_x, decimal_points)
+        pred_y2 = round(pred_centroid_y + offset_y, decimal_points)
 
         '''
             ========= [Debugging Section] ======== [1/2]
         
         print("First Predict result")
-        ic(self.id, current_frame, current_frame + frames_ahead)
+
+        trajectory = [delta_x, delta_y]
+        current_scale = round(self.x * self.y, decimal_points)
+        
+
+        scaling_factor = round(pred_scale / current_scale, decimal_points)
+
+        ic(self.id, current_frame + frames_ahead)
         ic([pred_x1, pred_y1, pred_x2, pred_y2], self.status)
-        ic([current_cen_x, current_cen_y], [centroid_x_pred, centroid_y_pred])
-        ic(current_scale, scale_pred)
+        ic([current_cen_x, current_cen_y], [pred_centroid_x, pred_centroid_y], trajectory)
+        ic(current_scale, pred_scale, scaling_factor)
         '''
         #    ====== [End of Debugging Section] =====
 
@@ -228,37 +254,45 @@ class PredictionBox(object):
         pred_y2 = clipped[3] 
         self.status = clipped[4]
 
-        if(self.status == 2): #This will also affect the Scale and the Centroid of the object
-            dx = abs(pred_x1 - pred_x2)
-            dy = abs(pred_y1 - pred_y2)
-            sum_x = pred_x1 + pred_x2
-            sum_y = pred_y1 + pred_y2           
+        if(self.status == 2): #This will also affect the Scale, Shape and the Centroid of the object
+            pred_width = abs(pred_x1 - pred_x2)
+            pred_height = abs(pred_y1 - pred_y2)          
+            
+            pred_scale = round((pred_width * pred_height), decimal_points)
+            pred_centroid_x = round((pred_x2 + pred_x1)/2, decimal_points)
+            pred_centroid_y = round((pred_y2 + pred_y1)/2, decimal_points)
 
-            scale_pred = round((dx * dy), decimal_points)
-            centroid_x_pred = round((sum_x/2), decimal_points)
-            centroid_y_pred = round((sum_y/2), decimal_points)
-
-            delta_x = round(centroid_x_pred - current_cen_x, decimal_points)
-            delta_y = round(centroid_y_pred - current_cen_y, decimal_points)
+            delta_x = round(pred_centroid_x - current_cen_x, decimal_points)
+            delta_y = round(pred_centroid_y - current_cen_y, decimal_points)
 
         trajectory = [delta_x, delta_y]
 
-        pred_xy = [self.x + delta_x, self.y + delta_y]
-        pred_centroid = [centroid_x_pred, centroid_y_pred]
+        pred_xy = [pred_width, pred_height]
+        pred_centroid = [pred_centroid_x, pred_centroid_y]
 
-        delta_scale = round(scale_pred - current_scale, decimal_points)
+        current_scale = round(self.x * self.y, decimal_points)
+        scaling_factor = round(pred_scale / current_scale, decimal_points)
 
-        prediction = [self.id, current_frame + frames_ahead, pred_xy, pred_centroid, trajectory, delta_scale]
+        prediction = [self.id, current_frame + frames_ahead, [pred_x1, pred_y1], [pred_x2, pred_y2], pred_xy, pred_centroid, trajectory, scaling_factor]
 
         '''
             ========= [Debugging Section] ======== [2/2]
-        
-        print("Final Predict result")
-        ic(self.id, current_frame, current_frame + frames_ahead)
-        ic([pred_x1, pred_y1, pred_x2, pred_y2], self.status)
-        ic([current_cen_x, current_cen_y], [centroid_x_pred, centroid_y_pred], trajectory)
-        ic(current_scale, scale_pred, delta_scale)
         '''
+        print("Final Predict result")
+
+        current_offset_x = round(self.x/2, decimal_points)
+        current_offset_y = round(self.y/2, decimal_points)
+
+        current_x1 = round(current_cen_x - current_offset_x, decimal_points)
+        current_y1 = round(current_cen_y - current_offset_y, decimal_points)
+        current_x2 = round(current_cen_x + current_offset_x, decimal_points)
+        current_y2 = round(current_cen_y + current_offset_y, decimal_points)
+
+        ic(self.id, current_frame + frames_ahead)
+        ic([current_x1, current_y1, current_x2, current_y2], [pred_x1, pred_y1, pred_x2, pred_y2], self.status)
+        ic([current_cen_x, current_cen_y], [pred_centroid_x, pred_centroid_y], trajectory)
+        ic(current_scale, pred_scale, scaling_factor)
+        
         #    ====== [End of Debugging Section] =====
 
         return (prediction)

@@ -51,10 +51,13 @@ def draw_boxes(img, bbox, identities=None, categories=None, confidences = None, 
 
     regression_dets:    array that stores the bbox objects from class PredictionBox
     regerssion_id:      array that stores the bbox_id (bbox_label)
-    predicted_dets:     array that stores the predicted bbox from regression
-    predicted_id:      array that stores the bbox_id (bbox_label)
 
         [!!!WARNING!!!] This area is still in development, expected the worst as of now!!!
+
+    regression_id =     [       id_1,           id_2,               id_3,       ...,        id_n     ]
+    regression_dets =   [regression_box_1, regression_box_2, regression_box_3,  ..., regression_box_n]
+
+    regression_box: look at PredictionBox's object initialization for more details
 '''
 regression_dets = []
 regression_id = []
@@ -85,7 +88,17 @@ def regression(bbox, frame):
     #    ====== [End of Debugging Section] =====
     
 predicted_dets = []
+all_predicted_results = []
 predicted_id = []
+
+'''
+    prediction =            [id, frames_ahead, (x1, y1), (x2, y2), (width, height), (xc, yc), trajectory, scale, delta_scale]
+
+    predicted_results =     [prediction_k(1), prediction_k(2), prediction_k(3), ..., prediction_k(n)]
+
+    predicted_id =          [           id_1,               id_2,                       id_3,        ...,            id_n       ]
+    all_predicted_results = [[prediction_results_1], [prediction_results_2], [prediction_results_3], ..., [prediction_results_n]]
+'''
 
 def regression_prediction(frames_ahead, video_dimension):
     for regression_box in regression_dets:
@@ -97,33 +110,96 @@ def regression_prediction(frames_ahead, video_dimension):
             if(id not in predicted_id):
                 predicted_dets.append(prediction)
                 predicted_id.append(id)
+                all_predicted_results.append([prediction])
             else:
                 predicted_dets[predicted_id.index(id)] = prediction
-
+                predicted_results = all_predicted_results[predicted_id.index(id)]
+                if(len(predicted_results) > frames_ahead):
+                    predicted_results.pop(0)
+                predicted_results.append([prediction])
+                all_predicted_results[predicted_id.index(id)] = predicted_results
+    
             '''
                 ========= [Debugging Section] ======== [2/2]
                        
             predicted_frame = prediction[1]
 
-            width_height = prediction[2]
+            x1y1 = prediction[2]
+            x1 = x1y1[0]
+            y1 = x1y1[1]
+
+            x2y2 = prediction[3]
+            x2 = x2y2[0]
+            y2 = x2y2[1]
+
+            width_height = prediction[4]
             width = width_height[0]
             height = width_height[1]
 
-            centroid = prediction[3]
+            centroid = prediction[5]
             xc = centroid[0]
             yc = centroid[1]
-                        
+
+            trajectory = prediction[-3]
+            scale = prediction[-2]            
             scale_change = prediction[-1]
 
             print("Status of the Prediction box")
-            ic([id, predicted_frame, pred_x1, pred_y1, pred_x2, pred_y2, scale_change])
+            ic([id, predicted_frame, x1, y1, x2, y2, scale, scale_change])
             ''' 
             #    ====== [End of Debugging Section] =====
-        
 
-def regression_analyzer (ground_truth_bbox, predicted_bbox, frames_ahead):
+'''
+    This fuction will take the ground truth bbox with it frame
+    And a prediction of the same object for this frame
+'''
 
-    
+'''
+    x1_err_rates  = [x1_err_frame_1, x1_err_frame_2, x1_err_frame_3, ..., x1_err_frame_n]
+    y1_err_rates  = [y1_err_frame_1, y1_err_frame_2, y1_err_frame_3, ..., y1_err_frame_n]
+    x2_err_rates  = [x2_err_frame_1, x2_err_frame_2, x2_err_frame_3, ..., x2_err_frame_n]
+    y2_err_rates  = [y2_err_frame_1, y2_err_frame_2, y2_err_frame_3, ..., y2_err_frame_n]
+
+    err_rates     = [x1_err_rates, y1_err_rates, x2_err_rates, y2_err_rates]
+
+    all_err_rates    = [err_rates_1, err_rates_2, err_rates3, ..., err_rates_n] 
+'''
+all_err_rates = []
+
+def regression_analyzer (ground_truth_bbox, frame, predictions):
+
+    for prediction in predictions:
+        predicted_frame = prediction[1]
+        if(predicted_frame < frame):
+            break
+        if(frame == predicted_frame):
+            decimal_points = 4
+
+            # Euclidean distance
+            
+            ground_x1 = round(ground_truth_bbox[0], decimal_points)
+            ground_y1 = round(ground_truth_bbox[1], decimal_points)
+            ground_x2 = round(ground_truth_bbox[2], decimal_points)
+            ground_y2 = round(ground_truth_bbox[3], decimal_points)
+
+            pred_x1 = prediction[2][0]
+            pred_y1 = prediction[2][1]
+            pred_x2 = prediction[3][0]
+            pred_y2 = prediction[3][1]
+
+            x1_err = ground_x1 - pred_x1
+            y1_err = ground_y1 - pred_y1
+            x2_err = ground_x2 - pred_x2
+            y2_err = ground_y2 - pred_y2
+
+            x1_err_rate = round((x1_err*100)/ground_x1, decimal_points)
+            y1_err_rate = round((y1_err*100)/ground_y1, decimal_points)
+            x2_err_rate = round((x2_err*100)/ground_x2, decimal_points)
+            y2_err_rate = round((y2_err*100)/ground_y2, decimal_points)
+
+            break
+
+    ic()
 
     '''
         [End of Construction Site]
@@ -277,7 +353,11 @@ def detect(save_img=False):
                         regression(bbox, frame)
                     regression_prediction(frames_ahead, [video_width, video_height])
                     
-
+                    for bbox in tracked_dets:
+                        if(frame >= frames_ahead * 2):
+                            id = bbox[-1]
+                            predictions = all_predicted_results[predicted_id.index(id)]
+                            regression_analyzer(bbox, frame, predictions)
                     '''
                         [End of Construction Site]
                     '''
