@@ -17,6 +17,7 @@ from utils.torch_utils import select_device, load_classifier, time_synchronized,
 
 from sort import *
 from linear_prediction import *
+import math
 
 
 
@@ -92,7 +93,7 @@ all_predicted_results = []
 predicted_id = []
 
 '''
-    prediction =            [id, frames_ahead, (x1, y1), (x2, y2), (width, height), (xc, yc), trajectory, scale, delta_scale]
+    prediction =            [id, frames_ahead, (x1, y1), (x2, y2), (width, height), (xc, yc), trajectory, scaling_factor]
 
     predicted_results =     [prediction_k(1), prediction_k(2), prediction_k(3), ..., prediction_k(n)]
 
@@ -116,11 +117,11 @@ def regression_prediction(frames_ahead, video_dimension):
                 predicted_results = all_predicted_results[predicted_id.index(id)]
                 if(len(predicted_results) > frames_ahead):
                     predicted_results.pop(0)
-                predicted_results.append([prediction])
+                predicted_results.append(prediction)
                 all_predicted_results[predicted_id.index(id)] = predicted_results
     
             '''
-                ========= [Debugging Section] ======== [2/2]
+                ========= [Debugging Section] ======== [2/3]
                        
             predicted_frame = prediction[1]
 
@@ -155,51 +156,53 @@ def regression_prediction(frames_ahead, video_dimension):
 '''
 
 '''
-    x1_err_rates  = [x1_err_frame_1, x1_err_frame_2, x1_err_frame_3, ..., x1_err_frame_n]
-    y1_err_rates  = [y1_err_frame_1, y1_err_frame_2, y1_err_frame_3, ..., y1_err_frame_n]
-    x2_err_rates  = [x2_err_frame_1, x2_err_frame_2, x2_err_frame_3, ..., x2_err_frame_n]
-    y2_err_rates  = [y2_err_frame_1, y2_err_frame_2, y2_err_frame_3, ..., y2_err_frame_n]
+    obj_err         = [centroid_err, scale_err]
+    frame_err_rates = [obj_err1, obj_err2, obj_err3, ..., obj_errn]
+    avg_err_rate    = [avg_cen_err, avg_area_err]
+    avg_err_rates   = [avg_err_rate1, avg_err_rate2, avg_err_rate1, ..., avg_err_raten]
 
-    err_rates     = [x1_err_rates, y1_err_rates, x2_err_rates, y2_err_rates]
-
-    all_err_rates    = [err_rates_1, err_rates_2, err_rates3, ..., err_rates_n] 
 '''
-all_err_rates = []
-
+frame_err_rates = []
+avg_err_rates = []
 def regression_analyzer (ground_truth_bbox, frame, predictions):
 
     for prediction in predictions:
         predicted_frame = prediction[1]
+
         if(predicted_frame < frame):
             break
+
         if(frame == predicted_frame):
+            ic(prediction)
             decimal_points = 4
 
             # Euclidean distance
-            
-            ground_x1 = round(ground_truth_bbox[0], decimal_points)
-            ground_y1 = round(ground_truth_bbox[1], decimal_points)
-            ground_x2 = round(ground_truth_bbox[2], decimal_points)
-            ground_y2 = round(ground_truth_bbox[3], decimal_points)
+            pred_wh = prediction[4]
+            pred_area = pred_wh[0] * pred_wh[1]
 
-            pred_x1 = prediction[2][0]
-            pred_y1 = prediction[2][1]
-            pred_x2 = prediction[3][0]
-            pred_y2 = prediction[3][1]
+            pred_centroid = prediction[5]
 
-            x1_err = ground_x1 - pred_x1
-            y1_err = ground_y1 - pred_y1
-            x2_err = ground_x2 - pred_x2
-            y2_err = ground_y2 - pred_y2
+            gnd_x1 = ground_truth_bbox[0]
+            gnd_y1 = ground_truth_bbox[1]
+            gnd_x2 = ground_truth_bbox[2]
+            gnd_y2 = ground_truth_bbox[3]
 
-            x1_err_rate = round((x1_err*100)/ground_x1, decimal_points)
-            y1_err_rate = round((y1_err*100)/ground_y1, decimal_points)
-            x2_err_rate = round((x2_err*100)/ground_x2, decimal_points)
-            y2_err_rate = round((y2_err*100)/ground_y2, decimal_points)
+            gnd_xc = round((gnd_x1 + gnd_x2)/2, decimal_points)
+            gnd_yc = round((gnd_y1 + gnd_y2)/2, decimal_points)
 
-            break
+            gnd_w = round(gnd_x2 - gnd_x1, decimal_points)
+            gnd_h = round(gnd_y2 - gnd_y1, decimal_points)
 
-    ic()
+            gnd_area = round(gnd_w * gnd_h, decimal_points)
+
+            centroid_err = math.dist([gnd_xc, gnd_yc], pred_centroid)
+            delta_area = round(pred_area - gnd_area, decimal_points)
+            area_err = delta_area/gnd_area * 100
+
+            obj_err = [centroid_err, area_err, prediction[0]]
+            frame_err_rates.append(obj_err)
+            ic(frame_err_rates)
+            return frame_err_rates
 
     '''
         [End of Construction Site]
@@ -356,17 +359,31 @@ def detect(save_img=False):
                     for bbox in tracked_dets:
                         if(frame >= frames_ahead * 2):
                             id = bbox[-1]
-                            predictions = all_predicted_results[predicted_id.index(id)]
-                            regression_analyzer(bbox, frame, predictions)
+                            if(id in predicted_id):
+                                predictions = all_predicted_results[predicted_id.index(id)]
+                                frame_err_rates = regression_analyzer(bbox, frame, predictions)
+
+                    if(frame >= frames_ahead * 2):
+                        sum_centroid_err = 0
+                        sum_area_err = 0
+                        for error in frame_err_rates:
+                            sum_centroid_err += error[0]
+                            sum_area_err += error[1]
+                        avg_err_rates.append([sum_centroid_err/len(frame_err_rates), sum_area_err/len(frame_err_rates), frame])
+
+                        '''
+                        ========= [Debugging Section] ======== [3/3]
+                        '''
+                        ic(frame_err_rates)    
+                        ic(avg_err_rates)
+                    
+                        #    ====== [End of Debugging Section] =====
+
                     '''
                         [End of Construction Site]
                     '''
                     
                     tracks =sort_tracker.getTrackers()
-                    #ic(tracked_dets) # TODO: Find out the meaning of values in array
-                    #ic(dets_to_sort)
-                    #print("tracks")
-                    #[ic(tr.history) for tr in tracks]
 
                     # draw boxes for visualization
                     if len(tracked_dets)>0:

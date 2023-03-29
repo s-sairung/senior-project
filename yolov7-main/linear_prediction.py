@@ -277,7 +277,7 @@ class PredictionBox(object):
 
         '''
             ========= [Debugging Section] ======== [2/2]
-        '''
+        
         print("Final Predict result")
 
         current_offset_x = round(self.x/2, decimal_points)
@@ -292,7 +292,7 @@ class PredictionBox(object):
         ic([current_x1, current_y1, current_x2, current_y2], [pred_x1, pred_y1, pred_x2, pred_y2], self.status)
         ic([current_cen_x, current_cen_y], [pred_centroid_x, pred_centroid_y], trajectory)
         ic(current_scale, pred_scale, scaling_factor)
-        
+        '''
         #    ====== [End of Debugging Section] =====
 
         return (prediction)
