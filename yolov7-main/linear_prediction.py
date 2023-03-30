@@ -30,6 +30,7 @@ class PredictionBox(object):
                                             (I use queue becuase we can dequeue the oldest one out then put newest in for updated prediction)
                         times_tracked:      Count the times that this object get tracked
                         status:             show the status of the predicted object (0 = nothing in particular, 1 = completely out of bounds, 2 = clipped box)
+                        collision:          Is a boolean value determine whether this object will likely to collide with our car
 
         [What will this predict]:
             1. Centroid of the object at next 'frames_ahead' frame
@@ -364,6 +365,7 @@ class PredictionBox(object):
                 code2 = "1000"
             elif(y2 > ywmax):
                 code2 = "0100"
+                self.collision = True
             else:
                 code2 = "0000"
 

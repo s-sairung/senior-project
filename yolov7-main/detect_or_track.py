@@ -31,13 +31,40 @@ def draw_boxes(img, bbox, identities=None, categories=None, confidences = None, 
         id = int(identities[i]) if identities is not None else 0
         # conf = confidences[i] if confidences is not None else 0
 
-        color = colors[cat]
+        color = colors[cat] if colors is not None else 0
         
         if not opt.nobbox:
             cv2.rectangle(img, (x1, y1), (x2, y2), color, tl)
 
         if not opt.nolabel:
             label = str(id) + ":"+ names[cat] if identities is not None else  f'{names[cat]} {confidences[i]:.2f}'
+            tf = max(tl - 1, 1)  # font thickness
+            t_size = cv2.getTextSize(label, 0, fontScale=tl / 3, thickness=tf)[0]
+            c2 = x1 + t_size[0], y1 - t_size[1] - 3
+            cv2.rectangle(img, (x1, y1), c2, color, -1, cv2.LINE_AA)  # filled
+            cv2.putText(img, label, (x1, y1 - 2), 0, tl / 3, [225, 255, 255], thickness=tf, lineType=cv2.LINE_AA)
+
+
+    return img
+
+def draw_prediction_boxes(img, bbox, identities=None, warning = False):
+    for i, box in enumerate(bbox):
+        x1, y1, x2, y2 = [int(i) for i in box]
+        tl = opt.thickness or round(0.002 * (img.shape[0] + img.shape[1]) / 2) + 1  # line/font thickness
+
+        id = int(identities[i]) if identities is not None else 0
+        # conf = confidences[i] if confidences is not None else 0
+
+        if(warning):
+            color = (0,0,211)
+        else:
+            color = (211,211,211)
+        
+        if not opt.nobbox:
+            cv2.rectangle(img, (x1, y1), (x2, y2), color, tl)
+
+        if not opt.nolabel:
+            label = str(id)
             tf = max(tl - 1, 1)  # font thickness
             t_size = cv2.getTextSize(label, 0, fontScale=tl / 3, thickness=tf)[0]
             c2 = x1 + t_size[0], y1 - t_size[1] - 3
@@ -62,20 +89,35 @@ def draw_boxes(img, bbox, identities=None, categories=None, confidences = None, 
 '''
 regression_dets = []
 regression_id = []
+countdown = [] # time since last updated frame
 
 def regression(bbox, frame):
 
     bbox_id = bbox[-1]
 
-    #ic(bbox_id, regression_id)
-    #ic(bbox_id not in regression_id)
-
     if bbox_id not in regression_id:
         regression_box = PredictionBox(bbox, frame)
         regression_dets.append(regression_box)
         regression_id.append(regression_box.id)
+        countdown.append(0)
     else:
         regression_dets[regression_id.index(bbox_id)].update(bbox, frame)
+        countdown[regression_id.index(bbox_id)] = 0 
+
+def regression_checker (limit):
+    times_deleted = 0    
+    for index in range(len(countdown)):
+        countdown[index] += 1
+        if countdown[index] > limit:
+            regression_dets.pop(index)
+            regression_id.pop(index)
+            countdown.pop(index)
+            countdown.append(-1)
+            times_deleted += 1
+            index -= 1
+    while times_deleted > 0:
+        countdown.pop(-1)
+        times_deleted -= 1
 
     '''
         ========= [Debugging Section] ======== [1/2]
@@ -101,10 +143,9 @@ predicted_id = []
     prediction =            [id, frames_ahead, (x1, y1), (x2, y2), (width, height), (xc, yc), collision, trajectory, scaling_factor]
 '''
 
-def regression_prediction(frames_ahead, video_dimension):
+def regression_prediction(frames_ahead, video, video_dimension):
     for regression_box in regression_dets:
         prediction = regression_box.predict_ahead(frames_ahead, video_dimension)
-        # prediction: [id, frames_ahead, (width, height), (xc, yc), trajectory, delta_scale]
 
         if(prediction != -1):                     # -1 means the box has yet reach the minimum frames threshold
             id = prediction[0]
@@ -112,15 +153,22 @@ def regression_prediction(frames_ahead, video_dimension):
                 predicted_dets.append(prediction)
                 predicted_id.append(id)
                 all_predicted_results.append([prediction])
+                
             else:
                 predicted_dets[predicted_id.index(id)] = prediction
                 predicted_results = all_predicted_results[predicted_id.index(id)]
                 if(len(predicted_results) > frames_ahead):
                     predicted_results.pop(0)
                 predicted_results.append(prediction)
-                all_predicted_results[predicted_id.index(id)] = predicted_results
+                all_predicted_results[predicted_id.index(id)] = predicted_results 
+            
+            bbox_xyxy = [[prediction[2][0], prediction[2][1], prediction[3][0], prediction[3][1]]]
+            identity = [prediction[0]]
+            
+            im1 = draw_prediction_boxes(video, bbox_xyxy, identity, prediction[-3])
+
     
-            '''
+    '''        
                 ========= [Debugging Section] ======== [2/3]
                        
             predicted_frame = prediction[1]
@@ -148,7 +196,7 @@ def regression_prediction(frames_ahead, video_dimension):
             print("Status of the Prediction box")
             ic([id, predicted_frame, x1, y1, x2, y2, scale_change])
             ''' 
-            #    ====== [End of Debugging Section] =====
+            #    ====== [End of Debugging Section] =====           
 
 '''
     all_error_id    = [ obj_id_1, obj_id_2,  obj_id_3,  ...,  obj_id_n] <<<<< global permanent array
@@ -360,19 +408,21 @@ def detect(save_img=False):
                     video_width = int(vid_cap.get(cv2.CAP_PROP_FRAME_WIDTH))
                     video_height = int(vid_cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
                     #ic([video_width, video_height])
-
+                    
+                    loss_limit = 10                 # [EDIT here!!] limit for successive times didn't got detected
                     frames_ahead = 30               # [EDIT here!!] for inter/extrapolation
                     for bbox in tracked_dets:
                         regression(bbox, frame)                                      #this will create 'regression_dets'
-                    regression_prediction(frames_ahead, [video_width, video_height]) #this will create 'all_predicted_results'
-
+                    regression_checker(loss_limit)
+                    
+                    regression_prediction(frames_ahead, im0, [video_width, video_height]) #this will create 'all_predicted_results'
+                    
                     if(frame >= frames_ahead * 2):
                         for bbox in tracked_dets:   #Check the accuracy for each and every object detected in this frame
                             id = bbox[-1]
                             if(id in predicted_id):
                                 predictions = all_predicted_results[predicted_id.index(id)]
                                 regression_analyzer(bbox, frame, predictions)       #this will create 'all_error_array'
-                        ic(all_error_array)
                     '''            
                     if(frame >= frames_ahead * 2):
                         sum_centroid_err = 0
@@ -405,6 +455,8 @@ def detect(save_img=False):
                         identities = tracked_dets[:, 8]
                         categories = tracked_dets[:, 4]
                         confidences = None
+
+                        #ic(bbox_xyxy, identities, categories, confidences)
 
                         if opt.show_track:
                             #loop over tracks
