@@ -72,6 +72,8 @@ class PredictionBox(object):
 
         self.status = 0
 
+        self.collision = False
+
         '''
             ========= [Debugging Section] ======== [1/1]
         
@@ -247,12 +249,15 @@ class PredictionBox(object):
         #    ====== [End of Debugging Section] =====
 
         # Clip the diagonal line to be within the video boundaries
+        self.collision = False
         clipped = self.line_clip(pred_x1, pred_y1, pred_x2, pred_y2, video_dimension[0], video_dimension[1])
         pred_x1 = clipped[0]
         pred_y1 = clipped[1]
         pred_x2 = clipped[2]
         pred_y2 = clipped[3] 
         self.status = clipped[4]
+
+        #ic(self.id, current_frame + frames_ahead, self.collision)
 
         if(self.status == 2): #This will also affect the Scale, Shape and the Centroid of the object
             pred_width = abs(pred_x1 - pred_x2)
@@ -273,7 +278,7 @@ class PredictionBox(object):
         current_scale = round(self.x * self.y, decimal_points)
         scaling_factor = round(pred_scale / current_scale, decimal_points)
 
-        prediction = [self.id, current_frame + frames_ahead, [pred_x1, pred_y1], [pred_x2, pred_y2], pred_xy, pred_centroid, trajectory, scaling_factor]
+        prediction = [self.id, current_frame + frames_ahead, [pred_x1, pred_y1], [pred_x2, pred_y2], pred_xy, pred_centroid, self.collision, trajectory, scaling_factor]
 
         '''
             ========= [Debugging Section] ======== [2/2]
@@ -344,6 +349,7 @@ class PredictionBox(object):
                 code2 = "1001"
             elif(y2 > ywmax):
                 code2 = "0101"
+                self.collision = True
             else:
                 code2 = "0001"
         elif(x2 > xwmax):

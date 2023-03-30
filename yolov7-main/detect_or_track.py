@@ -93,12 +93,12 @@ all_predicted_results = []
 predicted_id = []
 
 '''
-    prediction =            [id, frames_ahead, (x1, y1), (x2, y2), (width, height), (xc, yc), trajectory, scaling_factor]
+    predicted_id =          [           id_1,               id_2,                 id_3,        ...,          id_n       ]
+    all_predicted_results = [prediction_results_1, prediction_results_2, prediction_results_3, ..., prediction_results_n]
 
     predicted_results =     [prediction_k(1), prediction_k(2), prediction_k(3), ..., prediction_k(n)]
 
-    predicted_id =          [           id_1,               id_2,                       id_3,        ...,            id_n       ]
-    all_predicted_results = [[prediction_results_1], [prediction_results_2], [prediction_results_3], ..., [prediction_results_n]]
+    prediction =            [id, frames_ahead, (x1, y1), (x2, y2), (width, height), (xc, yc), collision, trajectory, scaling_factor]
 '''
 
 def regression_prediction(frames_ahead, video_dimension):
@@ -141,39 +141,38 @@ def regression_prediction(frames_ahead, video_dimension):
             xc = centroid[0]
             yc = centroid[1]
 
-            trajectory = prediction[-3]
-            scale = prediction[-2]            
+            collision = prediction[-3]
+            trajectory = prediction[-2]          
             scale_change = prediction[-1]
 
             print("Status of the Prediction box")
-            ic([id, predicted_frame, x1, y1, x2, y2, scale, scale_change])
+            ic([id, predicted_frame, x1, y1, x2, y2, scale_change])
             ''' 
             #    ====== [End of Debugging Section] =====
 
 '''
-    This fuction will take the ground truth bbox with it frame
-    And a prediction of the same object for this frame
-'''
+    all_error_id    = [ obj_id_1, obj_id_2,  obj_id_3,  ...,  obj_id_n] <<<<< global permanent array
+                            ..         ..       ..                ..
+    all_error_array = [obj_err_1, obj_err_2, obj_err_3, ..., obj_err_n] <<<<< global permanent array
 
-'''
-    obj_err         = [centroid_err, scale_err]
-    frame_err_rates = [obj_err1, obj_err2, obj_err3, ..., obj_errn]
-    avg_err_rate    = [avg_cen_err, avg_area_err]
-    avg_err_rates   = [avg_err_rate1, avg_err_rate2, avg_err_rate1, ..., avg_err_raten]
+    obj_err_k   = [label, class, err_30, err_60, err_90]            <<<<  local reuseable array //get and update
 
+    err_a       = [err_a_1, err_a_2, err_a_3, ..., err_a_m]     <<<<  local reuseable array //get and update
+
+    err_a_frame     = [cen_err, area_err, frame]                        <<<<  local reuseable array //create new everytime
 '''
-frame_err_rates = []
-avg_err_rates = []
+all_error_id = []
+all_error_array = []
 def regression_analyzer (ground_truth_bbox, frame, predictions):
 
-    for prediction in predictions:
+    for prediction in predictions: # loop for find the same frame
+        predicted_id = prediction[0]
         predicted_frame = prediction[1]
 
-        if(predicted_frame < frame):
+        if(predicted_frame < frame or predicted_frame > frame):
             break
-
+        
         if(frame == predicted_frame):
-            ic(prediction)
             decimal_points = 4
 
             # Euclidean distance
@@ -187,6 +186,8 @@ def regression_analyzer (ground_truth_bbox, frame, predictions):
             gnd_x2 = ground_truth_bbox[2]
             gnd_y2 = ground_truth_bbox[3]
 
+            gnd_class = ground_truth_bbox[4]
+
             gnd_xc = round((gnd_x1 + gnd_x2)/2, decimal_points)
             gnd_yc = round((gnd_y1 + gnd_y2)/2, decimal_points)
 
@@ -196,13 +197,22 @@ def regression_analyzer (ground_truth_bbox, frame, predictions):
             gnd_area = round(gnd_w * gnd_h, decimal_points)
 
             centroid_err = math.dist([gnd_xc, gnd_yc], pred_centroid)
-            delta_area = round(pred_area - gnd_area, decimal_points)
+
+            delta_area = round(abs(pred_area - gnd_area), decimal_points)
             area_err = delta_area/gnd_area * 100
 
-            obj_err = [centroid_err, area_err, prediction[0]]
-            frame_err_rates.append(obj_err)
-            ic(frame_err_rates)
-            return frame_err_rates
+            err_30_frame = [centroid_err, area_err, frame]
+
+            if(predicted_id not in all_error_id):
+                err_30 = [err_30_frame]
+
+                obj_err = [predicted_id, gnd_class, err_30]
+                all_error_id.append(predicted_id)
+                all_error_array.append(obj_err)
+            else:
+                obj_err = all_error_array[all_error_id.index(predicted_id)]
+                err_30 = obj_err[2]
+                err_30.append(err_30_frame)
 
     '''
         [End of Construction Site]
@@ -353,32 +363,36 @@ def detect(save_img=False):
 
                     frames_ahead = 30               # [EDIT here!!] for inter/extrapolation
                     for bbox in tracked_dets:
-                        regression(bbox, frame)
-                    regression_prediction(frames_ahead, [video_width, video_height])
-                    
-                    for bbox in tracked_dets:
-                        if(frame >= frames_ahead * 2):
+                        regression(bbox, frame)                                      #this will create 'regression_dets'
+                    regression_prediction(frames_ahead, [video_width, video_height]) #this will create 'all_predicted_results'
+
+                    if(frame >= frames_ahead * 2):
+                        for bbox in tracked_dets:   #Check the accuracy for each and every object detected in this frame
                             id = bbox[-1]
                             if(id in predicted_id):
                                 predictions = all_predicted_results[predicted_id.index(id)]
-                                frame_err_rates = regression_analyzer(bbox, frame, predictions)
-
+                                regression_analyzer(bbox, frame, predictions)       #this will create 'all_error_array'
+                        ic(all_error_array)
+                    '''            
                     if(frame >= frames_ahead * 2):
                         sum_centroid_err = 0
                         sum_area_err = 0
+
                         for error in frame_err_rates:
                             sum_centroid_err += error[0]
                             sum_area_err += error[1]
                         avg_err_rates.append([sum_centroid_err/len(frame_err_rates), sum_area_err/len(frame_err_rates), frame])
-
-                        '''
+                    '''
+                    '''
                         ========= [Debugging Section] ======== [3/3]
-                        '''
-                        ic(frame_err_rates)    
+                        
+                        ic(frame_err_rates)
+                        ic(sum_centroid_err)
+                        ic(sum_area_err)
+                        ic(len(frame_err_rates))    
                         ic(avg_err_rates)
-                    
+                        '''
                         #    ====== [End of Debugging Section] =====
-
                     '''
                         [End of Construction Site]
                     '''
