@@ -52,7 +52,7 @@ class PredictionBox(object):
         worldXcentroid = round((bbox[0] + bbox[2])/2, decimal_points)
         worldYcentroid = round((bbox[1] + bbox[3])/2, decimal_points)
         centroidarr = [worldXcentroid, worldYcentroid]
-        self.frames_cap = 30                                        #[EDIT HERE] 
+        self.frames_cap = 90                                        #[EDIT HERE] 
 
         self.id = bbox[-1]
 
@@ -167,7 +167,7 @@ class PredictionBox(object):
 
     def predict_ahead(self, frames_ahead, video_dimension):
 
-        decimal_points = 4             # [EDIT HERE!!]: number of float decimals [3/3]   
+        predictions = [self.id, [],[],[]]   
 
         if(self.times_tracked < self.frames_threshold):
             return -1
@@ -181,8 +181,43 @@ class PredictionBox(object):
             cen_x.append(traj[0])
             cen_y.append(traj[1])
 
+        
+        if(self.times_tracked >= 30):
+            cen_x = cen_x[-31:-1]
+            cen_y = cen_y[-31:-1]
+            frames = self.frames[-31:-1]
+            widths = self.widths[-31:-1]
+            heights = self.heights[-31:-1]
+            prediction = self.predict_model(frames, frames_ahead, cen_x, cen_y, widths, heights, video_dimension)
+            predictions[1] = prediction
+
+            prediction = self.predict_model(frames, frames_ahead*2, cen_x, cen_y, widths, heights, video_dimension)
+            predictions[2] = prediction
+            prediction = self.predict_model(frames, frames_ahead*3, cen_x, cen_y, widths, heights, video_dimension)
+            predictions[3] = prediction
+        '''
+        if(self.times_tracked > 40):
+            cen_x = cen_x[-61:-1]
+            cen_y = cen_y[-61:-1]
+            frames = self.frames[-61:-1]
+            widths = self.widths[-61:-1]
+            heights = self.heights[-61:-1]
+            prediction = self.predict_model(frames, frames_ahead*2, cen_x, cen_y, widths, heights, video_dimension)
+            predictions[2] = prediction
+
+        if(self.times_tracked > 50):
+            prediction = self.predict_model(self.frames, frames_ahead*3, cen_x, cen_y, self.widths, self.heights, video_dimension)
+            predictions[3] = prediction
+        '''
+            
+        return predictions
+
+    def predict_model(self, frames, frames_ahead, cen_x, cen_y, widths, heights, video_dimension):
+
+        decimal_points = 4             # [EDIT HERE!!]: number of float decimals [3/3]
+
         #Scikit use numpy structure, so I'll change it into numpy.
-        frames, cen_x, cen_y, widths, heights = np.array(self.frames).reshape(-1,1), np.array(cen_x), np.array(cen_y), np.array(self.widths), np.array(self.heights)
+        frames, cen_x, cen_y, widths, heights = np.array(frames).reshape(-1,1), np.array(cen_x), np.array(cen_y), np.array(widths), np.array(heights)
 
         #Constructing with existed data model by using frame number as regressor and x, y, scale as respond
         model_centroid_x = LinearRegression().fit(frames, cen_x)
@@ -196,7 +231,7 @@ class PredictionBox(object):
         r_sq_centroid_x = model_centroid_x.score(frames, cen_x)
         r_sq_centroid_y = model_centroid_y.score(frames, cen_y)
         r_sq_width      = model_width.score(frames, widths)
-        r_sq_height     = model_width.score(frames, heights)
+        r_sq_height     = model_height.score(frames, heights)
         '''
 
         # predictions
@@ -210,11 +245,11 @@ class PredictionBox(object):
         pred_centroid_x = round(pred_centroid_x[0], decimal_points)
         pred_centroid_y = round(pred_centroid_y[0], decimal_points)
         pred_width      = round(pred_width[0], decimal_points)
-        pred_height      = round(pred_height[0], decimal_points)
+        pred_height     = round(pred_height[0], decimal_points)
 
         # calculate into more meaningful and easier to understand
-        current_cen_x = cen_x[-1]
-        current_cen_y = cen_y[-1]
+        current_cen_x = self.trajectories[-1][0]
+        current_cen_y = self.trajectories[-1][1]
         current_frame = self.frames[-1]
 
         offset_x = round(pred_width/2, decimal_points)
@@ -279,7 +314,7 @@ class PredictionBox(object):
         current_scale = round(self.x * self.y, decimal_points)
         scaling_factor = round(pred_scale / current_scale, decimal_points)
 
-        prediction = [self.id, current_frame + frames_ahead, [pred_x1, pred_y1], [pred_x2, pred_y2], pred_xy, pred_centroid, self.collision, trajectory, scaling_factor]
+        prediction = [current_frame + frames_ahead, [pred_x1, pred_y1], [pred_x2, pred_y2], pred_xy, pred_centroid, self.collision, trajectory, scaling_factor]
 
         '''
             ========= [Debugging Section] ======== [2/2]
@@ -301,7 +336,7 @@ class PredictionBox(object):
         '''
         #    ====== [End of Debugging Section] =====
 
-        return (prediction)
+        return prediction
     
     def line_clip(self, x1, y1, x2, y2, xwmax, ywmax):
         '''

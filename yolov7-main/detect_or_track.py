@@ -18,6 +18,7 @@ from utils.torch_utils import select_device, load_classifier, time_synchronized,
 from sort import *
 from linear_prediction import *
 import math
+import matplotlib.pyplot as plt
 
 
 
@@ -71,6 +72,37 @@ def draw_prediction_boxes(img, bbox, identities=None, warning = False):
             cv2.rectangle(img, (x1, y1), c2, color, -1, cv2.LINE_AA)  # filled
             cv2.putText(img, label, (x1, y1 - 2), 0, tl / 3, [225, 255, 255], thickness=tf, lineType=cv2.LINE_AA)
 
+    return img
+
+def draw_prediction_boxes(img, bbox):
+    id = int(bbox[0])
+    for i, box in enumerate(bbox[1:]):
+        if(len(box) < 1): 
+            break
+        x1 = int(box[1][0])
+        y1 = int(box[1][1])
+        x2 = int(box[2][0])
+        y2 = int(box[2][1])
+
+        warning = box[5]
+
+        tl = opt.thickness or round(0.002 * (img.shape[0] + img.shape[1]) / 2) + 1  # line/font thickness
+
+        if(warning):
+            color = (0,0,211-i*30)
+        else:
+            color = (211-i*30 ,211-i*30 ,211-i*30)
+        
+        if not opt.nobbox:
+            cv2.rectangle(img, (x1, y1), (x2, y2), color, tl)
+
+        if not opt.nolabel:
+            label = str(id)
+            tf = max(tl - 1, 1)  # font thickness
+            t_size = cv2.getTextSize(label, 0, fontScale=tl / 3, thickness=tf)[0]
+            c2 = x1 + t_size[0], y1 - t_size[1] - 3
+            cv2.rectangle(img, (x1, y1), c2, color, -1, cv2.LINE_AA)  # filled
+            cv2.putText(img, label, (x1, y1 - 2), 0, tl / 3, [225, 255, 255], thickness=tf, lineType=cv2.LINE_AA)
 
     return img
 
@@ -138,13 +170,14 @@ predicted_id = []
     predicted_id =          [           id_1,               id_2,                 id_3,        ...,          id_n       ]
     all_predicted_results = [prediction_results_1, prediction_results_2, prediction_results_3, ..., prediction_results_n]
 
-    predicted_results =     [prediction_k(1), prediction_k(2), prediction_k(3), ..., prediction_k(n)]
-
-    prediction =            [id, frames_ahead, (x1, y1), (x2, y2), (width, height), (xc, yc), collision, trajectory, scaling_factor]
+    predicted_results =     [id, prediction_30, prediction_60, prediction_90]
+    predicted_k =           [prediction_k(1), prediction_k(2), prediction_k(3), ..., prediction_k(n)]
+    prediction =            [predicted_frame, (x1, y1), (x2, y2), (width, height), (xc, yc), collision, trajectory, scaling_factor]
 '''
 
 def regression_prediction(frames_ahead, video, video_dimension):
     for regression_box in regression_dets:
+        '''
         prediction = regression_box.predict_ahead(frames_ahead, video_dimension)
 
         if(prediction != -1):                     # -1 means the box has yet reach the minimum frames threshold
@@ -161,12 +194,30 @@ def regression_prediction(frames_ahead, video, video_dimension):
                     predicted_results.pop(0)
                 predicted_results.append(prediction)
                 all_predicted_results[predicted_id.index(id)] = predicted_results 
-            
+                
             bbox_xyxy = [[prediction[2][0], prediction[2][1], prediction[3][0], prediction[3][1]]]
-            identity = [prediction[0]]
             
-            im1 = draw_prediction_boxes(video, bbox_xyxy, identity, prediction[-3])
+            im1 = draw_prediction_boxes(video, bbox_xyxy, id, prediction[-3])
+        '''
+        predicted_results = regression_box.predict_ahead(frames_ahead, video_dimension)
+        if(predicted_results != -1):
+            id = predicted_results[0]
+            if(id not in predicted_id):
+                predicted_id.append(id)
+                all_predicted_results.append(predicted_results)
+            else:
+                prediction_30 = predicted_results[1]
+                prediction_60 = predicted_results[2]
+                prediction_90 = predicted_results[3]
 
+                if(len(prediction_30) < 1):
+                    all_predicted_results[predicted_id.index(id)][1].append(prediction_30)
+                if(len(prediction_60) < 1):
+                    all_predicted_results[predicted_id.index(id)][2].append(prediction_60)
+                if(len(prediction_90) < 1):
+                    all_predicted_results[predicted_id.index(id)][3].append(prediction_90)
+            
+            im1 = draw_prediction_boxes(video, predicted_results)
     
     '''        
                 ========= [Debugging Section] ======== [2/3]
@@ -207,27 +258,28 @@ def regression_prediction(frames_ahead, video, video_dimension):
 
     err_a       = [err_a_1, err_a_2, err_a_3, ..., err_a_m]     <<<<  local reuseable array //get and update
 
-    err_a_frame     = [cen_err, area_err, frame]                        <<<<  local reuseable array //create new everytime
+    err_a_frame     = [cen_err30, area_err, frame]                        <<<<  local reuseable array //create new everytime
 '''
 all_error_id = []
 all_error_array = []
 def regression_analyzer (ground_truth_bbox, frame, predictions):
-
-    for prediction in predictions: # loop for find the same frame
-        predicted_id = prediction[0]
-        predicted_frame = prediction[1]
+    predicted_id = predictions[0]
+    for i, prediction in enumerate(predictions[1:]): # loop for find the same frame
+        if(len(prediction) < 1):
+            break
+        predicted_frame = prediction[0]
 
         if(predicted_frame < frame or predicted_frame > frame):
             break
         
-        if(frame == predicted_frame):
+        if(frame == predicted_frame): 
             decimal_points = 4
 
             # Euclidean distance
-            pred_wh = prediction[4]
+            pred_wh = prediction[3]
             pred_area = pred_wh[0] * pred_wh[1]
 
-            pred_centroid = prediction[5]
+            pred_centroid = prediction[4]
 
             gnd_x1 = ground_truth_bbox[0]
             gnd_y1 = ground_truth_bbox[1]
@@ -249,18 +301,90 @@ def regression_analyzer (ground_truth_bbox, frame, predictions):
             delta_area = round(abs(pred_area - gnd_area), decimal_points)
             area_err = delta_area/gnd_area * 100
 
-            err_30_frame = [centroid_err, area_err, frame]
+            err = [centroid_err, area_err, frame]
 
+            err_30 = []
+            err_60 = []
+            err_90 = []
             if(predicted_id not in all_error_id):
-                err_30 = [err_30_frame]
+                if(i == 0):
+                    err_30 = [err]
+                elif(i == 1):
+                    err_60 = [err]
+                else:
+                    err_90 = [err]
 
-                obj_err = [predicted_id, gnd_class, err_30]
+                obj_err = [predicted_id, gnd_class, err_30, err_60, err_90]
                 all_error_id.append(predicted_id)
                 all_error_array.append(obj_err)
             else:
                 obj_err = all_error_array[all_error_id.index(predicted_id)]
-                err_30 = obj_err[2]
-                err_30.append(err_30_frame)
+                if(i == 0):
+                    err_30 = obj_err[2]
+                    err_30.append(err)
+                elif(i == 1):
+                    err_60 = obj_err[3]
+                    err_60.append(err)
+                else:
+                    err_90 = obj_err[4]
+                    err_90.append(err)
+                
+
+def predictPlots():
+    for object in all_error_array:
+        object_id = object[0]
+        object_class = object[1]
+        object_30 = object[2]
+        object_60 = object[3]
+        object_90 = object[4]
+
+        cen_err30 = []
+        sca_err30 = []
+        frames_plot30 = []
+        for err in object_30:
+            cen_err30.append(err[0])
+            sca_err30.append(err[1])
+            frames_plot30.append(err[2])
+        ''''''
+        cen_err60 = []
+        sca_err60 = []
+        frames_plot60 = []
+        for err in object_60:
+            cen_err60.append(err[0])
+            sca_err60.append(err[1])
+            frames_plot60.append(err[2])
+
+        cen_err90 = []
+        sca_err90 = []
+        frames_plot90 = []
+        for err in object_90:
+            cen_err90.append(err[0])
+            sca_err90.append(err[1])
+            frames_plot90.append(err[2])
+        
+        # Centroid Error Subplot
+        plt.subplot(1,2,1)
+        plt.plot(frames_plot30, cen_err30, linestyle = '-', label = 'id: ' + str(object_id) + ' class: ' + str(object_class) + ' (30)')
+        plt.plot(frames_plot60, cen_err60, linestyle = '--', label = 'id: ' + str(object_id) + ' class: ' + str(object_class) + ' (60)')
+        plt.plot(frames_plot90, cen_err90, linestyle = ':', label = 'id: ' + str(object_id) + ' class: ' + str(object_class) + ' (90)')
+        plt.xlabel('frame')
+        plt.ylabel('centroid error (px)')
+        plt.title('Centroid Error Graph')
+
+        # Scale Error Subplot
+        plt.subplot(1,2,2)
+        plt.plot(frames_plot30, sca_err30, label = 'id: ' + str(object_id) + ' class: ' + str(object_class) + ' (30)')
+        plt.plot(frames_plot60, sca_err60, linestyle = '--', label = 'id: ' + str(object_id) + ' class: ' + str(object_class) + ' (60)')
+        plt.plot(frames_plot90, sca_err90, linestyle = ':', label = 'id: ' + str(object_id) + ' class: ' + str(object_class)  + ' (90)')
+        plt.xlabel('frame')
+        plt.ylabel('scale error (px*px)')
+        plt.title('Scale Error Graph')
+
+    plt.gcf().set_size_inches(10, 5)
+    plt.legend(loc = 'lower center', bbox_to_anchor = (0., 1.), ncol = 5)
+    #plt.tight_layout(pad = 2.0)
+    plt.savefig('./runs/evaluation/evaulation_demo.png', bbox_inches = 'tight', dpi = 200)
+    plt.show()
 
     '''
         [End of Construction Site]
@@ -521,6 +645,8 @@ def detect(save_img=False):
                             save_path += '.mp4'
                         vid_writer = cv2.VideoWriter(save_path, cv2.VideoWriter_fourcc(*'mp4v'), fps, (w, h))
                     vid_writer.write(im0)
+
+    predictPlots()
 
     if save_txt or save_img:
         s = f"\n{len(list(save_dir.glob('labels/*.txt')))} labels saved to {save_dir / 'labels'}" if save_txt else ''
