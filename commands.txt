@@ -21,7 +21,7 @@ python detect.py --weights yolov7.pt --conf 0.4 --img-size 640 --source ./infere
 
 [Track]:
 python detect_or_track.py --weights yolov7.pt --no-trace --view-img --source street.mp4 --show-fps --nosave --track --pause
-python detect_or_track.py --weights main_yolov.pt cunstom_tiny.pt --no-trace --source carDash4.mp4 --show-fps --nosave
+python detect_or_track.py --weights main_yolo.pt custom_tiny.pt --no-trace --source carDash4.mp4 --show-fps --nosave --track
 
 [extra commands]:
 --nosave

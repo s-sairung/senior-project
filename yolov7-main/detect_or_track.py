@@ -206,8 +206,13 @@ def regression_prediction(frames_ahead, video, video_dimension):
                 all_predicted_results.append(predicted_results)
             else:
                 prediction_30 = predicted_results[1][0]
-                prediction_60 = predicted_results[2][0]
-                prediction_90 = predicted_results[3][0]
+                prediction_60 = []
+                prediction_90 = []
+
+                if(len(predicted_results[2]) > 0):
+                    prediction_60 = predicted_results[2][0]
+                    if(len(predicted_results[3]) > 0):
+                        prediction_90 = predicted_results[3][0]
                 ''' It just works.
                 ic(prediction_30)
                 ic(prediction_60)
@@ -219,10 +224,10 @@ def regression_prediction(frames_ahead, video, video_dimension):
                 '''
                 if(len(prediction_30) > 0):
                     all_predicted_results[predicted_id.index(id)][1].append(prediction_30)
-                if(len(prediction_60) > 0):
-                    all_predicted_results[predicted_id.index(id)][2].append(prediction_60)
-                if(len(prediction_90) > 0):
-                    all_predicted_results[predicted_id.index(id)][3].append(prediction_90)
+                    if(len(prediction_60) > 0):
+                        all_predicted_results[predicted_id.index(id)][2].append(prediction_60)
+                        if(len(prediction_90) > 0):
+                            all_predicted_results[predicted_id.index(id)][3].append(prediction_90)
             '''
             ic(all_predicted_results[predicted_id.index(id)][1])
             ic(all_predicted_results[predicted_id.index(id)][2])
@@ -396,7 +401,9 @@ def predictPlots():
         plt.subplot(1,2,1)
         if(len(frames_plot30) > 10):
             plt.plot(frames_plot30, cen_err30, linestyle = '-', label = 'id: ' + str(object_id) + ' class: ' + str(object_class) + ' (30)')
+        if(len(frames_plot60) > 10):
             plt.plot(frames_plot60, cen_err60, linestyle = '--', label = 'id: ' + str(object_id) + ' class: ' + str(object_class) + ' (60)')
+        if(len(frames_plot90) > 10):    
             plt.plot(frames_plot90, cen_err90, linestyle = ':', label = 'id: ' + str(object_id) + ' class: ' + str(object_class) + ' (90)')
         plt.xlabel('frame')
         plt.ylabel('centroid error (px)')
@@ -406,7 +413,9 @@ def predictPlots():
         plt.subplot(1,2,2)
         if(len(frames_plot30) > 10):
             plt.plot(frames_plot30, sca_err30, label = 'id: ' + str(object_id) + ' class: ' + str(object_class) + ' (30)')
+        if(len(frames_plot60) > 10):
             plt.plot(frames_plot60, sca_err60, linestyle = '--', label = 'id: ' + str(object_id) + ' class: ' + str(object_class) + ' (60)')
+        if(len(frames_plot90) > 10):    
             plt.plot(frames_plot90, sca_err90, linestyle = ':', label = 'id: ' + str(object_id) + ' class: ' + str(object_class)  + ' (90)')
         plt.xlabel('frame')
         plt.ylabel('scale error (px*px)')

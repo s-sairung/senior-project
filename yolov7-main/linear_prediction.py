@@ -52,7 +52,7 @@ class PredictionBox(object):
         worldXcentroid = round((bbox[0] + bbox[2])/2, decimal_points)
         worldYcentroid = round((bbox[1] + bbox[3])/2, decimal_points)
         centroidarr = [worldXcentroid, worldYcentroid]
-        self.frames_cap = 90                                        #[EDIT HERE] 
+        self.frames_cap = 50                                        #[EDIT HERE] 
 
         self.id = bbox[-1]
 
@@ -182,34 +182,36 @@ class PredictionBox(object):
             cen_y.append(traj[1])
 
         
-        if(self.times_tracked >= 30):
-            cen_x = cen_x[-31:-1]
-            cen_y = cen_y[-31:-1]
+        if(self.times_tracked >= self.frames_threshold):
+            cen_x30 = cen_x[-31:-1]
+            cen_y30 = cen_y[-31:-1]
             frames = self.frames[-31:-1]
             widths = self.widths[-31:-1]
             heights = self.heights[-31:-1]
-            prediction = self.predict_model(frames, frames_ahead, cen_x, cen_y, widths, heights, video_dimension)
+            prediction = self.predict_model(frames, frames_ahead, cen_x30, cen_y30, widths, heights, video_dimension)
             predictions[1].append(prediction)
-
+        '''
             prediction = self.predict_model(frames, frames_ahead+15, cen_x, cen_y, widths, heights, video_dimension)
             predictions[2].append(prediction)
             prediction = self.predict_model(frames, frames_ahead*2, cen_x, cen_y, widths, heights, video_dimension)
             predictions[3].append(prediction)
 
         '''
-        if(self.times_tracked > 40):
-            cen_x = cen_x[-61:-1]
-            cen_y = cen_y[-61:-1]
-            frames = self.frames[-61:-1]
-            widths = self.widths[-61:-1]
-            heights = self.heights[-61:-1]
-            prediction = self.predict_model(frames, frames_ahead*2, cen_x, cen_y, widths, heights, video_dimension)
-            predictions[2] = prediction
+        if(self.times_tracked > self.frames_cap - 10):
+            cen_x60 = cen_x[-41:-1]
+            cen_y60 = cen_y[-41:-1]
+            frames = self.frames[-41:-1]
+            widths = self.widths[-41:-1]
+            heights = self.heights[-41:-1]
 
-        if(self.times_tracked > 50):
+            prediction = self.predict_model(frames, frames_ahead*2, cen_x60, cen_y60, widths, heights, video_dimension)
+            predictions[2].append(prediction)
+
+        if(self.times_tracked > self.frames_cap):
             prediction = self.predict_model(self.frames, frames_ahead*3, cen_x, cen_y, self.widths, self.heights, video_dimension)
-            predictions[3] = prediction
-        '''
+            
+            predictions[3].append(prediction)
+        
         #ic(predictions)  ''' This output works as expected'''          
         return predictions
 
