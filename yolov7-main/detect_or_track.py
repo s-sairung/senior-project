@@ -74,24 +74,25 @@ def draw_prediction_boxes(img, bbox, identities=None, warning = False):
 
     return img
 
-def draw_prediction_boxes(img, bbox):
-    id = int(bbox[0])
-    for i, box in enumerate(bbox[1:]):
-        if(len(box) < 1): 
+def draw_prediction_boxes(img, all_predictions):
+    id = int(all_predictions[0])
+    for prediction_level, predictions in enumerate(all_predictions[1:]):
+        if(len(predictions) < 1): 
             break
+
+        box = predictions[0]
         x1 = int(box[1][0])
         y1 = int(box[1][1])
         x2 = int(box[2][0])
         y2 = int(box[2][1])
-
         warning = box[5]
 
         tl = opt.thickness or round(0.002 * (img.shape[0] + img.shape[1]) / 2) + 1  # line/font thickness
 
         if(warning):
-            color = (0,0,211-i*30)
+            color = (0,0,211- prediction_level*30)
         else:
-            color = (211-i*30 ,211-i*30 ,211-i*30)
+            color = (211- prediction_level*30 ,211- prediction_level*30 ,211- prediction_level*30)
         
         if not opt.nobbox:
             cv2.rectangle(img, (x1, y1), (x2, y2), color, tl)
@@ -103,8 +104,6 @@ def draw_prediction_boxes(img, bbox):
             c2 = x1 + t_size[0], y1 - t_size[1] - 3
             cv2.rectangle(img, (x1, y1), c2, color, -1, cv2.LINE_AA)  # filled
             cv2.putText(img, label, (x1, y1 - 2), 0, tl / 3, [225, 255, 255], thickness=tf, lineType=cv2.LINE_AA)
-
-    return img
 
 '''
     [Construction Site Ahead] [1/2]
@@ -200,24 +199,36 @@ def regression_prediction(frames_ahead, video, video_dimension):
             im1 = draw_prediction_boxes(video, bbox_xyxy, id, prediction[-3])
         '''
         predicted_results = regression_box.predict_ahead(frames_ahead, video_dimension)
-        if(predicted_results != -1):
+        if(predicted_results != -1):        # -1 means the box has yet reach the minimum frames threshold
             id = predicted_results[0]
             if(id not in predicted_id):
                 predicted_id.append(id)
                 all_predicted_results.append(predicted_results)
             else:
-                prediction_30 = predicted_results[1]
-                prediction_60 = predicted_results[2]
-                prediction_90 = predicted_results[3]
+                prediction_30 = predicted_results[1][0]
+                prediction_60 = predicted_results[2][0]
+                prediction_90 = predicted_results[3][0]
+                ''' It just works.
+                ic(prediction_30)
+                ic(prediction_60)
+                ic(prediction_90)
 
-                if(len(prediction_30) < 1):
+                ic(all_predicted_results[predicted_id.index(id)][1])
+                ic(all_predicted_results[predicted_id.index(id)][2])
+                ic(all_predicted_results[predicted_id.index(id)][3])
+                '''
+                if(len(prediction_30) > 0):
                     all_predicted_results[predicted_id.index(id)][1].append(prediction_30)
-                if(len(prediction_60) < 1):
+                if(len(prediction_60) > 0):
                     all_predicted_results[predicted_id.index(id)][2].append(prediction_60)
-                if(len(prediction_90) < 1):
+                if(len(prediction_90) > 0):
                     all_predicted_results[predicted_id.index(id)][3].append(prediction_90)
-            
-            im1 = draw_prediction_boxes(video, predicted_results)
+            '''
+            ic(all_predicted_results[predicted_id.index(id)][1])
+            ic(all_predicted_results[predicted_id.index(id)][2])
+            ic(all_predicted_results[predicted_id.index(id)][3])
+            '''
+            draw_prediction_boxes(video, predicted_results)
     
     '''        
                 ========= [Debugging Section] ======== [2/3]
@@ -264,80 +275,99 @@ all_error_id = []
 all_error_array = []
 def regression_analyzer (ground_truth_bbox, frame, predictions):
     predicted_id = predictions[0]
-    for i, prediction in enumerate(predictions[1:]): # loop for find the same frame
-        if(len(prediction) < 1):
-            break
-        predicted_frame = prediction[0]
+    for prediction_level, predictions in enumerate(predictions[1:]): # loop for find the same frame
+        #ic(predictions)
+        for prediction in predictions:
+            if(len(prediction) < 1):
+                break
+            predicted_frame = prediction[0]
+            
+            if(predicted_frame > frame):
+                break
+                
+            #ic(prediction)
+            #ic(predicted_frame, frame)
+            if(frame == predicted_frame): 
+                decimal_points = 4
 
-        if(predicted_frame < frame or predicted_frame > frame):
-            break
-        
-        if(frame == predicted_frame): 
-            decimal_points = 4
+                # Euclidean distance
+                pred_wh = prediction[3]
+                pred_area = pred_wh[0] * pred_wh[1]
 
-            # Euclidean distance
-            pred_wh = prediction[3]
-            pred_area = pred_wh[0] * pred_wh[1]
+                pred_centroid = prediction[4]
 
-            pred_centroid = prediction[4]
+                gnd_x1 = ground_truth_bbox[0]
+                gnd_y1 = ground_truth_bbox[1]
+                gnd_x2 = ground_truth_bbox[2]
+                gnd_y2 = ground_truth_bbox[3]
 
-            gnd_x1 = ground_truth_bbox[0]
-            gnd_y1 = ground_truth_bbox[1]
-            gnd_x2 = ground_truth_bbox[2]
-            gnd_y2 = ground_truth_bbox[3]
+                gnd_class = ground_truth_bbox[4]
 
-            gnd_class = ground_truth_bbox[4]
+                gnd_xc = round((gnd_x1 + gnd_x2)/2, decimal_points)
+                gnd_yc = round((gnd_y1 + gnd_y2)/2, decimal_points)
 
-            gnd_xc = round((gnd_x1 + gnd_x2)/2, decimal_points)
-            gnd_yc = round((gnd_y1 + gnd_y2)/2, decimal_points)
+                gnd_w = round(gnd_x2 - gnd_x1, decimal_points)
+                gnd_h = round(gnd_y2 - gnd_y1, decimal_points)
 
-            gnd_w = round(gnd_x2 - gnd_x1, decimal_points)
-            gnd_h = round(gnd_y2 - gnd_y1, decimal_points)
+                gnd_area = round(gnd_w * gnd_h, decimal_points)
 
-            gnd_area = round(gnd_w * gnd_h, decimal_points)
+                centroid_err = math.dist([gnd_xc, gnd_yc], pred_centroid)
 
-            centroid_err = math.dist([gnd_xc, gnd_yc], pred_centroid)
+                delta_area = round(abs(pred_area - gnd_area), decimal_points)
+                area_err = delta_area/gnd_area * 100
 
-            delta_area = round(abs(pred_area - gnd_area), decimal_points)
-            area_err = delta_area/gnd_area * 100
+                err = [centroid_err, area_err, frame]
 
-            err = [centroid_err, area_err, frame]
+                err_30 = []
+                err_60 = []
+                err_90 = []
+                if(predicted_id not in all_error_id):
+                    if(prediction_level == 0):
+                        err_30 = [err]
+                    elif(prediction_level == 1):
+                        err_60 = [err]
+                    else:
+                        err_90 = [err]
 
-            err_30 = []
-            err_60 = []
-            err_90 = []
-            if(predicted_id not in all_error_id):
-                if(i == 0):
-                    err_30 = [err]
-                elif(i == 1):
-                    err_60 = [err]
+                    obj_err = [predicted_id, gnd_class, err_30, err_60, err_90]
+                    all_error_id.append(predicted_id)
+                    all_error_array.append(obj_err)
                 else:
-                    err_90 = [err]
+                    obj_err = all_error_array[all_error_id.index(predicted_id)]
+                    '''
+                    ic(err)
+                    ic(obj_err)
+                    ic(obj_err[2])
+                    ic(obj_err[3])
+                    ic(obj_err[4])
+                    '''
+                    if(prediction_level == 0):
+                        err_30 = obj_err[2]
+                        err_30.append(err)
+                    elif(prediction_level == 1):
+                        err_60 = obj_err[3]
+                        err_60.append(err)
+                    else:
+                        err_90 = obj_err[4]
+                        err_90.append(err)
 
-                obj_err = [predicted_id, gnd_class, err_30, err_60, err_90]
-                all_error_id.append(predicted_id)
-                all_error_array.append(obj_err)
-            else:
-                obj_err = all_error_array[all_error_id.index(predicted_id)]
-                if(i == 0):
-                    err_30 = obj_err[2]
-                    err_30.append(err)
-                elif(i == 1):
-                    err_60 = obj_err[3]
-                    err_60.append(err)
-                else:
-                    err_90 = obj_err[4]
-                    err_90.append(err)
+                #ic(obj_err)
                 
 
 def predictPlots():
+    #ic(all_error_array)
     for object in all_error_array:
         object_id = object[0]
         object_class = object[1]
         object_30 = object[2]
         object_60 = object[3]
         object_90 = object[4]
-
+        '''
+        ic(object)
+        ic(object_30)
+        ic(object_60)
+        ic(object_90)
+        '''
         cen_err30 = []
         sca_err30 = []
         frames_plot30 = []
@@ -361,30 +391,32 @@ def predictPlots():
             cen_err90.append(err[0])
             sca_err90.append(err[1])
             frames_plot90.append(err[2])
-        
+
         # Centroid Error Subplot
         plt.subplot(1,2,1)
-        plt.plot(frames_plot30, cen_err30, linestyle = '-', label = 'id: ' + str(object_id) + ' class: ' + str(object_class) + ' (30)')
-        plt.plot(frames_plot60, cen_err60, linestyle = '--', label = 'id: ' + str(object_id) + ' class: ' + str(object_class) + ' (60)')
-        plt.plot(frames_plot90, cen_err90, linestyle = ':', label = 'id: ' + str(object_id) + ' class: ' + str(object_class) + ' (90)')
+        if(len(frames_plot30) > 10):
+            plt.plot(frames_plot30, cen_err30, linestyle = '-', label = 'id: ' + str(object_id) + ' class: ' + str(object_class) + ' (30)')
+            plt.plot(frames_plot60, cen_err60, linestyle = '--', label = 'id: ' + str(object_id) + ' class: ' + str(object_class) + ' (60)')
+            plt.plot(frames_plot90, cen_err90, linestyle = ':', label = 'id: ' + str(object_id) + ' class: ' + str(object_class) + ' (90)')
         plt.xlabel('frame')
         plt.ylabel('centroid error (px)')
         plt.title('Centroid Error Graph')
 
         # Scale Error Subplot
         plt.subplot(1,2,2)
-        plt.plot(frames_plot30, sca_err30, label = 'id: ' + str(object_id) + ' class: ' + str(object_class) + ' (30)')
-        plt.plot(frames_plot60, sca_err60, linestyle = '--', label = 'id: ' + str(object_id) + ' class: ' + str(object_class) + ' (60)')
-        plt.plot(frames_plot90, sca_err90, linestyle = ':', label = 'id: ' + str(object_id) + ' class: ' + str(object_class)  + ' (90)')
+        if(len(frames_plot30) > 10):
+            plt.plot(frames_plot30, sca_err30, label = 'id: ' + str(object_id) + ' class: ' + str(object_class) + ' (30)')
+            plt.plot(frames_plot60, sca_err60, linestyle = '--', label = 'id: ' + str(object_id) + ' class: ' + str(object_class) + ' (60)')
+            plt.plot(frames_plot90, sca_err90, linestyle = ':', label = 'id: ' + str(object_id) + ' class: ' + str(object_class)  + ' (90)')
         plt.xlabel('frame')
         plt.ylabel('scale error (px*px)')
         plt.title('Scale Error Graph')
 
     plt.gcf().set_size_inches(10, 5)
-    plt.legend(loc = 'lower center', bbox_to_anchor = (0., 1.), ncol = 5)
-    #plt.tight_layout(pad = 2.0)
-    plt.savefig('./runs/evaluation/evaulation_demo.png', bbox_inches = 'tight', dpi = 200)
-    plt.show()
+    #plt.legend(loc = 'upper center', bbox_to_anchor = (0., 0.), ncol = 5)
+    plt.tight_layout()
+    plt.savefig('./runs/evaluation/evaulation_demo.png', dpi = 300)
+    #plt.show()
 
     '''
         [End of Construction Site]
@@ -499,8 +531,6 @@ def detect(save_img=False):
                     dets_to_sort = np.vstack((dets_to_sort, 
                                 np.array([x1, y1, x2, y2, conf, detclass])))
 
-                # ic(dets_to_sort)
-
                 if opt.track:
   
                     tracked_dets = sort_tracker.update(dets_to_sort, opt.unique_track_color)
@@ -531,7 +561,6 @@ def detect(save_img=False):
                     '''
                     video_width = int(vid_cap.get(cv2.CAP_PROP_FRAME_WIDTH))
                     video_height = int(vid_cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
-                    #ic([video_width, video_height])
                     
                     loss_limit = 10                 # [EDIT here!!] limit for successive times didn't got detected
                     frames_ahead = 30               # [EDIT here!!] for inter/extrapolation
@@ -579,8 +608,6 @@ def detect(save_img=False):
                         identities = tracked_dets[:, 8]
                         categories = tracked_dets[:, 4]
                         confidences = None
-
-                        #ic(bbox_xyxy, identities, categories, confidences)
 
                         if opt.show_track:
                             #loop over tracks

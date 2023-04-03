@@ -189,12 +189,13 @@ class PredictionBox(object):
             widths = self.widths[-31:-1]
             heights = self.heights[-31:-1]
             prediction = self.predict_model(frames, frames_ahead, cen_x, cen_y, widths, heights, video_dimension)
-            predictions[1] = prediction
+            predictions[1].append(prediction)
 
+            prediction = self.predict_model(frames, frames_ahead+15, cen_x, cen_y, widths, heights, video_dimension)
+            predictions[2].append(prediction)
             prediction = self.predict_model(frames, frames_ahead*2, cen_x, cen_y, widths, heights, video_dimension)
-            predictions[2] = prediction
-            prediction = self.predict_model(frames, frames_ahead*3, cen_x, cen_y, widths, heights, video_dimension)
-            predictions[3] = prediction
+            predictions[3].append(prediction)
+
         '''
         if(self.times_tracked > 40):
             cen_x = cen_x[-61:-1]
@@ -209,7 +210,7 @@ class PredictionBox(object):
             prediction = self.predict_model(self.frames, frames_ahead*3, cen_x, cen_y, self.widths, self.heights, video_dimension)
             predictions[3] = prediction
         '''
-            
+        #ic(predictions)  ''' This output works as expected'''          
         return predictions
 
     def predict_model(self, frames, frames_ahead, cen_x, cen_y, widths, heights, video_dimension):
