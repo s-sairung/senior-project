@@ -424,7 +424,10 @@ def predictPlots():
     plt.gcf().set_size_inches(10, 5)
     #plt.legend(loc = 'upper center', bbox_to_anchor = (0., 0.), ncol = 5)
     plt.tight_layout()
-    plt.savefig('./runs/evaluation/evaulation_demo.png', dpi = 300)
+    eval_path = './runs/evaluation'
+    eval_name = 'evaluation_demo.png'
+    if not os.path.isdir(eval_path): os.makedirs(eval_path)
+    plt.savefig(os.path.join(eval_path, eval_name), dpi = 300)
     #plt.show()
 
     '''
