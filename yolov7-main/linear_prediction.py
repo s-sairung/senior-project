@@ -21,6 +21,7 @@ class PredictionBox(object):
             (0, 0)    
 
         [STATIC VALUE]  id:                 Is a label of bbox (from object detection)
+                        category            Is a name of the class in string form
                         widths:             Is a queue that store the bbox-width from each frame
                         heights:            Is a queue that store the bbox-height from each frame
                         frames:             Is a queue that store the frames of the object that got detected (Form the footage)
@@ -52,7 +53,7 @@ class PredictionBox(object):
         worldXcentroid = round((bbox[0] + bbox[2])/2, decimal_points)
         worldYcentroid = round((bbox[1] + bbox[3])/2, decimal_points)
         centroidarr = [worldXcentroid, worldYcentroid]
-        self.frames_cap = 50                                        #[EDIT HERE] 
+        self.frames_cap = 30                                        #[EDIT HERE] 
 
         self.id = bbox[-1]
 
@@ -65,7 +66,26 @@ class PredictionBox(object):
 
         self.frames = []
         self.frames.append(frame)
-        self.frames_threshold = 30                                  #[EDIT HERE]
+
+        if(bbox[4] == 0):
+            self.category = "person"
+        elif(bbox[4] == 1):
+            self.category = "bicycle"
+        elif(bbox[4] == 2):
+            self.category = "car"
+        elif(bbox[4] == 3):
+            self.category = "motorcycle"
+        elif(bbox[4] == 4):
+            self.category = "bus"
+        elif(bbox[4] == 5):
+            self.category = "truck"
+        elif(bbox[4] == 6):
+            self.category = "scooter"
+        
+        if(self.category == "motorcycle" or self.category == "scooter"):
+            self.frames_threshold = 15                                 #[EDIT HERE]
+        else:
+            self.frames_threshold = 30                                 #[EDIT HERE]
 
         self.trajectories = []
         self.trajectories.append(centroidarr)
@@ -181,38 +201,27 @@ class PredictionBox(object):
             cen_x.append(traj[0])
             cen_y.append(traj[1])
 
+        frame_selector_coarse = -self.frames_threshold
+
+        # This will start the prediction before the others if it is fast moving object.
+        if(self.category == "motorcycle" or self.category == "scooter"):
+            frame_selector = -self.frames_threshold
+            frame_selector_coarse = frame_selector - (self.times_tracked + frame_selector)
+            if(frame_selector_coarse <= -30):
+                frame_selector_coarse = -30
         
-        if(self.times_tracked >= self.frames_threshold):
-            cen_x30 = cen_x[-31:-1]
-            cen_y30 = cen_y[-31:-1]
-            frames = self.frames[-31:-1]
-            widths = self.widths[-31:-1]
-            heights = self.heights[-31:-1]
-            prediction = self.predict_model(frames, frames_ahead, cen_x30, cen_y30, widths, heights, video_dimension)
-            predictions[1].append(prediction)
-        '''
-            prediction = self.predict_model(frames, frames_ahead+15, cen_x, cen_y, widths, heights, video_dimension)
-            predictions[2].append(prediction)
-            prediction = self.predict_model(frames, frames_ahead*2, cen_x, cen_y, widths, heights, video_dimension)
-            predictions[3].append(prediction)
+        # Fit model only once for each object in one single frame
+        cen_x30 = cen_x[frame_selector_coarse-1:-1]
+        cen_y30 = cen_y[frame_selector_coarse-1:-1]
+        frames = self.frames[frame_selector_coarse-1:-1]
+        widths = self.widths[frame_selector_coarse-1:-1]
+        heights = self.heights[frame_selector_coarse-1:-1]
+        multiple_predictions = self.multiple_predict_using_model(frames, frames_ahead, cen_x30, cen_y30, widths, heights, video_dimension)
 
-        '''
-        if(self.times_tracked > self.frames_cap - 10):
-            cen_x60 = cen_x[-41:-1]
-            cen_y60 = cen_y[-41:-1]
-            frames = self.frames[-41:-1]
-            widths = self.widths[-41:-1]
-            heights = self.heights[-41:-1]
-
-            prediction = self.predict_model(frames, frames_ahead*2, cen_x60, cen_y60, widths, heights, video_dimension)
-            predictions[2].append(prediction)
-
-        if(self.times_tracked > self.frames_cap):
-            prediction = self.predict_model(self.frames, frames_ahead*3, cen_x, cen_y, self.widths, self.heights, video_dimension)
-            
-            predictions[3].append(prediction)
+        predictions[1].append(multiple_predictions[0])
+        predictions[2].append(multiple_predictions[1])
+        predictions[3].append(multiple_predictions[2])
         
-        #ic(predictions)  ''' This output works as expected'''          
         return predictions
 
     def predict_model(self, frames, frames_ahead, cen_x, cen_y, widths, heights, video_dimension):
@@ -229,7 +238,7 @@ class PredictionBox(object):
         model_width = LinearRegression().fit(frames, widths)
         model_height = LinearRegression().fit(frames, heights)
 
-        ''' (Currently Useless)
+        '''
         # coefficient of determination 
         r_sq_centroid_x = model_centroid_x.score(frames, cen_x)
         r_sq_centroid_y = model_centroid_y.score(frames, cen_y)
@@ -341,6 +350,141 @@ class PredictionBox(object):
 
         return prediction
     
+    def fit_model(self, frames, cen_x, cen_y, widths, heights):
+
+        #Scikit use numpy structure, so I'll change it into numpy.
+        frames, cen_x, cen_y, widths, heights = np.array(frames).reshape(-1,1), np.array(cen_x), np.array(cen_y), np.array(widths), np.array(heights)
+
+        #Constructing with existed data model by using frame number as regressor and x, y, scale as respond
+        model_centroid_x = LinearRegression().fit(frames, cen_x)
+        model_centroid_y = LinearRegression().fit(frames, cen_y)
+
+        model_width = LinearRegression().fit(frames, widths)
+        model_height = LinearRegression().fit(frames, heights)
+
+        ''' (Currently Useless)
+        # coefficient of determination 
+        r_sq_centroid_x = model_centroid_x.score(frames, cen_x)
+        r_sq_centroid_y = model_centroid_y.score(frames, cen_y)
+        r_sq_width      = model_width.score(frames, widths)
+        r_sq_height     = model_height.score(frames, heights)
+        '''
+
+        return model_centroid_x, model_centroid_y, model_height, model_width
+
+    def multiple_predict_using_model(self, frames, frames_ahead, cen_x, cen_y, widths, heights, video_dimension):
+
+        model_centroid_x, model_centroid_y, model_height, model_width = self.fit_model(frames, cen_x, cen_y, widths, heights)
+
+        decimal_points = 4             # [EDIT HERE!!]: number of float decimals [3/3]
+        predictions = []
+        # predictions
+        for level in range(1,4):
+            pred_frame = np.array(frames[-1] + frames_ahead * level).reshape(1, -1)
+
+            pred_centroid_x = model_centroid_x.predict(pred_frame)
+            pred_centroid_y = model_centroid_y.predict(pred_frame)
+            pred_width = model_width.predict(pred_frame)
+            pred_height = model_height.predict(pred_frame)
+
+            pred_centroid_x = round(pred_centroid_x[0], decimal_points)
+            pred_centroid_y = round(pred_centroid_y[0], decimal_points)
+            pred_width      = round(pred_width[0], decimal_points)
+            pred_height     = round(pred_height[0], decimal_points)
+
+            # calculate into more meaningful and easier to understand
+            current_cen_x = self.trajectories[-1][0]
+            current_cen_y = self.trajectories[-1][1]
+            current_frame = self.frames[-1]
+
+            offset_x = round(pred_width/2, decimal_points)
+            offset_y = round(pred_height/2, decimal_points)
+
+            delta_x = round(pred_centroid_x - current_cen_x, decimal_points)
+            delta_y = round(pred_centroid_y - current_cen_y, decimal_points)
+
+            pred_scale    = round(pred_width * pred_height, decimal_points)
+
+            #Transforming our data into the traditional ones: (x1,y1) at top left and (x2, y2) at bottom right
+            pred_x1 = round(pred_centroid_x - offset_x, decimal_points)
+            pred_y1 = round(pred_centroid_y - offset_y, decimal_points)
+            pred_x2 = round(pred_centroid_x + offset_x, decimal_points)
+            pred_y2 = round(pred_centroid_y + offset_y, decimal_points)
+
+            '''
+                ========= [Debugging Section] ======== [1/2]
+            
+            print("First Predict result")
+
+            trajectory = [delta_x, delta_y]
+            current_scale = round(self.x * self.y, decimal_points)
+            
+
+            scaling_factor = round(pred_scale / current_scale, decimal_points)
+
+            ic(self.id, current_frame + frames_ahead)
+            ic([pred_x1, pred_y1, pred_x2, pred_y2], self.status)
+            ic([current_cen_x, current_cen_y], [pred_centroid_x, pred_centroid_y], trajectory)
+            ic(current_scale, pred_scale, scaling_factor)
+            '''
+            #    ====== [End of Debugging Section] =====
+
+            # Clip the diagonal line to be within the video boundaries
+            self.collision = False
+            clipped = self.line_clip(pred_x1, pred_y1, pred_x2, pred_y2, video_dimension[0], video_dimension[1])
+            pred_x1 = clipped[0]
+            pred_y1 = clipped[1]
+            pred_x2 = clipped[2]
+            pred_y2 = clipped[3] 
+            self.status = clipped[4]
+
+            #ic(self.id, current_frame + frames_ahead, self.collision)
+
+            if(self.status == 2): #This will also affect the Scale, Shape and the Centroid of the object
+                pred_width = abs(pred_x1 - pred_x2)
+                pred_height = abs(pred_y1 - pred_y2)          
+                
+                pred_scale = round((pred_width * pred_height), decimal_points)
+                pred_centroid_x = round((pred_x2 + pred_x1)/2, decimal_points)
+                pred_centroid_y = round((pred_y2 + pred_y1)/2, decimal_points)
+
+                delta_x = round(pred_centroid_x - current_cen_x, decimal_points)
+                delta_y = round(pred_centroid_y - current_cen_y, decimal_points)
+
+            trajectory = [delta_x, delta_y]
+
+            pred_xy = [pred_width, pred_height]
+            pred_centroid = [pred_centroid_x, pred_centroid_y]
+
+            current_scale = round(self.x * self.y, decimal_points)
+            scaling_factor = round(pred_scale / current_scale, decimal_points)
+
+            prediction = [current_frame + frames_ahead * level, [pred_x1, pred_y1], [pred_x2, pred_y2], pred_xy, pred_centroid, self.collision, trajectory, scaling_factor]
+
+            predictions.append(prediction)
+
+        '''
+            ========= [Debugging Section] ======== [2/2]
+        
+        print("Final Predict result")
+
+        current_offset_x = round(self.x/2, decimal_points)
+        current_offset_y = round(self.y/2, decimal_points)
+
+        current_x1 = round(current_cen_x - current_offset_x, decimal_points)
+        current_y1 = round(current_cen_y - current_offset_y, decimal_points)
+        current_x2 = round(current_cen_x + current_offset_x, decimal_points)
+        current_y2 = round(current_cen_y + current_offset_y, decimal_points)
+
+        ic(self.id, current_frame + frames_ahead)
+        ic([current_x1, current_y1, current_x2, current_y2], [pred_x1, pred_y1, pred_x2, pred_y2], self.status)
+        ic([current_cen_x, current_cen_y], [pred_centroid_x, pred_centroid_y], trajectory)
+        ic(current_scale, pred_scale, scaling_factor)
+        '''
+        #    ====== [End of Debugging Section] =====
+
+        return predictions
+    
     def line_clip(self, x1, y1, x2, y2, xwmax, ywmax):
         '''
             At first I would like to do Liang-Barsky algorithm, but it will deform the box
@@ -360,6 +504,10 @@ class PredictionBox(object):
                                     |                   |
         '''
         xwmin = ywmin = 0
+        padding = 0.15         #[EDIT HERE!!] range from 0.0 to 1.0 
+        car_zone_xl = round(xwmax * padding, 4)         #ignore  (padding*100)% from the left of video
+        car_zone_xr = round(xwmax * (1.0-padding), 4)   #ignore  (padding*100)% from the right of video
+        car_zone_y = round(ywmax * (1.0-padding), 4)    #use the (padding*100)% from the bottom of video as collision zone
 
         if(x1 < xwmin):
             if(y1 < ywmin):
@@ -388,7 +536,7 @@ class PredictionBox(object):
                 code2 = "1001"
             elif(y2 > ywmax):
                 code2 = "0101"
-                self.collision = True
+                #self.collision = True
             else:
                 code2 = "0001"
         elif(x2 > xwmax):
@@ -403,7 +551,7 @@ class PredictionBox(object):
                 code2 = "1000"
             elif(y2 > ywmax):
                 code2 = "0100"
-                self.collision = True
+                #self.collision = True
             else:
                 code2 = "0000"
 
@@ -438,4 +586,9 @@ class PredictionBox(object):
                     elif(i == 1): y2 = ywmax
                     elif(i == 2): x2 = xwmax
                     else: x2 = 0
+        if(x1 > car_zone_xl and x2 < car_zone_xr and y2 > car_zone_y):
+            self.collision = True
+            ic(car_zone_xl, x2, car_zone_xr)
+            ic(y1)
+            ic(y2, car_zone_y)
         return ([x1, y1, x2, y2, 2])
