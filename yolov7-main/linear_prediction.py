@@ -1,6 +1,7 @@
 from icecream import ic
 import numpy as np
 from sklearn.linear_model import LinearRegression
+from sklearn.metrics import r2_score
 import math
 
 class PredictionBox(object):
@@ -352,24 +353,58 @@ class PredictionBox(object):
     
     def fit_model(self, frames, cen_x, cen_y, widths, heights):
 
+        '''Polynomial
+        poly_model_centroid_x = np.poly1d(np.polyfit(frames, cen_x, 3))
+        poly_model_centroid_y = np.poly1d(np.polyfit(frames, cen_y, 3))
+
+        poly_model_width = np.poly1d(np.polyfit(frames, widths, 3))
+        poly_model_height = np.poly1d(np.polyfit(frames, heights, 3))
+
+        # coefficient of determination 
+        r_ly_sq_centroid_x = r2_score(cen_x, poly_model_centroid_x(frames))
+        r_ly_sq_centroid_y = r2_score(cen_y, poly_model_centroid_y(frames))
+        r_ly_sq_width      = r2_score(widths, poly_model_width(frames))
+        r_ly_sq_height     = r2_score(heights, poly_model_height(frames))
+
+        #ic(r_ly_sq_centroid_x,r_ly_sq_centroid_y)
+        #ic(r_ly_sq_height,r_ly_sq_width)
+        '''
+
+        '''Linear'''
         #Scikit use numpy structure, so I'll change it into numpy.
         frames, cen_x, cen_y, widths, heights = np.array(frames).reshape(-1,1), np.array(cen_x), np.array(cen_y), np.array(widths), np.array(heights)
 
         #Constructing with existed data model by using frame number as regressor and x, y, scale as respond
-        model_centroid_x = LinearRegression().fit(frames, cen_x)
-        model_centroid_y = LinearRegression().fit(frames, cen_y)
+        linear_model_centroid_x = LinearRegression().fit(frames, cen_x)
+        linear_model_centroid_y = LinearRegression().fit(frames, cen_y)
 
-        model_width = LinearRegression().fit(frames, widths)
-        model_height = LinearRegression().fit(frames, heights)
+        linear_model_width = LinearRegression().fit(frames, widths)
+        linear_model_height = LinearRegression().fit(frames, heights)
 
         ''' (Currently Useless)
         # coefficient of determination 
-        r_sq_centroid_x = model_centroid_x.score(frames, cen_x)
-        r_sq_centroid_y = model_centroid_y.score(frames, cen_y)
-        r_sq_width      = model_width.score(frames, widths)
-        r_sq_height     = model_height.score(frames, heights)
+        r_lin_sq_centroid_x = linear_model_centroid_x.score(frames, cen_x)
+        r_lin_sq_centroid_y = linear_model_centroid_y.score(frames, cen_y)
+        r_lin_sq_width      = linear_model_width.score(frames, widths)
+        r_lin_sq_height     = linear_model_height.score(frames, heights)
+
+        #ic(r_lin_sq_centroid_x,r_lin_sq_centroid_y)
+        #ic(r_lin_sq_height,r_lin_sq_width)        
         '''
 
+        ''' [Debugging Section]
+        ic("Comparison")
+        ic(r_lin_sq_centroid_x, r_ly_sq_centroid_x)
+        ic(r_lin_sq_centroid_y, r_ly_sq_centroid_y)
+        ic(r_lin_sq_height, r_ly_sq_height)
+        ic(r_lin_sq_width, r_ly_sq_width)
+        '''
+
+        model_centroid_x = linear_model_centroid_x 
+        model_centroid_y = linear_model_centroid_y
+        model_height = linear_model_height
+        model_width = linear_model_width
+        
         return model_centroid_x, model_centroid_y, model_height, model_width
 
     def multiple_predict_using_model(self, frames, frames_ahead, cen_x, cen_y, widths, heights, video_dimension):
@@ -382,6 +417,7 @@ class PredictionBox(object):
         for level in range(1,4):
             pred_frame = np.array(frames[-1] + frames_ahead * level).reshape(1, -1)
 
+            '''linear'''
             pred_centroid_x = model_centroid_x.predict(pred_frame)
             pred_centroid_y = model_centroid_y.predict(pred_frame)
             pred_width = model_width.predict(pred_frame)
@@ -391,6 +427,22 @@ class PredictionBox(object):
             pred_centroid_y = round(pred_centroid_y[0], decimal_points)
             pred_width      = round(pred_width[0], decimal_points)
             pred_height     = round(pred_height[0], decimal_points)
+            
+
+            '''polynomial
+            pred_centroid_x = model_centroid_x(pred_frame)
+            pred_centroid_y = model_centroid_y(pred_frame)
+            pred_width = model_width(pred_frame)
+            pred_height = model_height(pred_frame)
+
+            pred_centroid_x = round(pred_centroid_x[0][0], decimal_points)
+            pred_centroid_y = round(pred_centroid_y[0][0], decimal_points)
+            pred_width      = round(pred_width[0][0], decimal_points)
+            pred_height     = round(pred_height[0][0], decimal_points)
+
+            ic(pred_centroid_x, pred_centroid_y)
+            ic(pred_width, pred_height)
+            '''
 
             # calculate into more meaningful and easier to understand
             current_cen_x = self.trajectories[-1][0]

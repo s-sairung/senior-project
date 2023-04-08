@@ -428,18 +428,18 @@ def predictPlots(video_dimension):
     sd_scale_90 = np.std(np.array(all_scale_err90))
 
     #ic(all_cen_err30)
-    ic(mean_cen_30, sd_cen_30)
+    #ic(mean_cen_30, sd_cen_30)
     #ic(all_cen_err60)
-    ic(mean_cen_60, sd_cen_60)
+    #ic(mean_cen_60, sd_cen_60)
     #ic(all_cen_err90)
-    ic(mean_cen_90, sd_cen_90)
+    #ic(mean_cen_90, sd_cen_90)
 
     #ic(all_scale_err30)
-    ic(mean_scale_30, sd_scale_30)
+    #ic(mean_scale_30, sd_scale_30)
     #ic(all_scale_err30)
-    ic(mean_scale_60, sd_scale_60)
+    #ic(mean_scale_60, sd_scale_60)
     #ic(all_scale_err30)
-    ic(mean_scale_90, sd_scale_90)
+    #ic(mean_scale_90, sd_scale_90)
 
     '''
         [End of Construction Site]
