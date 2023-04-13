@@ -188,7 +188,7 @@ class PredictionBox(object):
 
     def predict_ahead(self, frames_ahead, video_dimension):
 
-        predictions = [self.id, [],[],[]]   
+        predictions = [self.id, self.category, [],[],[]]   
 
         if(self.times_tracked < self.frames_threshold):
             return -1
@@ -219,9 +219,9 @@ class PredictionBox(object):
         heights = self.heights[frame_selector_coarse-1:-1]
         multiple_predictions = self.multiple_predict_using_model(frames, frames_ahead, cen_x30, cen_y30, widths, heights, video_dimension)
 
-        predictions[1].append(multiple_predictions[0])
-        predictions[2].append(multiple_predictions[1])
-        predictions[3].append(multiple_predictions[2])
+        predictions[2].append(multiple_predictions[0])
+        predictions[3].append(multiple_predictions[1])
+        predictions[4].append(multiple_predictions[2])
         
         return predictions
 
@@ -640,7 +640,7 @@ class PredictionBox(object):
                     else: x2 = 0
         if(x1 > car_zone_xl and x2 < car_zone_xr and y2 > car_zone_y):
             self.collision = True
-            ic(car_zone_xl, x2, car_zone_xr)
-            ic(y1)
-            ic(y2, car_zone_y)
+            #ic(car_zone_xl, x2, car_zone_xr)
+            #ic(y1)
+            #ic(y2, car_zone_y)
         return ([x1, y1, x2, y2, 2])
