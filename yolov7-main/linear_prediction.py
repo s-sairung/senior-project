@@ -556,10 +556,6 @@ class PredictionBox(object):
                                     |                   |
         '''
         xwmin = ywmin = 0
-        padding = 0.15         #[EDIT HERE!!] range from 0.0 to 1.0 
-        car_zone_xl = round(xwmax * padding, 4)         #ignore  (padding*100)% from the left of video
-        car_zone_xr = round(xwmax * (1.0-padding), 4)   #ignore  (padding*100)% from the right of video
-        car_zone_y = round(ywmax * (1.0-padding), 4)    #use the (padding*100)% from the bottom of video as collision zone
 
         if(x1 < xwmin):
             if(y1 < ywmin):
@@ -638,9 +634,73 @@ class PredictionBox(object):
                     elif(i == 1): y2 = ywmax
                     elif(i == 2): x2 = xwmax
                     else: x2 = 0
-        if(x1 > car_zone_xl and x2 < car_zone_xr and y2 > car_zone_y):
-            self.collision = True
-            #ic(car_zone_xl, x2, car_zone_xr)
-            #ic(y1)
-            #ic(y2, car_zone_y)
+        
+        padding = 0.15         #[EDIT HERE!!] range from 0.0 to 1.0 
+        car_zone_xl = round(xwmax * padding, 4)         #ignore  (padding*100)% from the left of video
+        car_zone_xr = round(xwmax * (1.0-padding), 4)   #ignore  (padding*100)% from the right of video
+        car_zone_y = round(ywmax * (1.0-padding), 4)    #use the (padding*100)% from the bottom of video as collision zone
+        self.safezoneoverlap([car_zone_xl, car_zone_y, car_zone_xr, ywmax], [x1, y1, x2, y2])
         return ([x1, y1, x2, y2, 2])
+    
+    def safezoneoverlap(self, clip_window, bbox):
+        xwmin = clip_window[0]
+        ywmin = clip_window[1]
+        xwmax = clip_window[2]
+        ywmax = clip_window[3]
+
+        x1 = bbox[0]
+        y1 = bbox[1]
+        x2 = bbox[2]
+        y2 = bbox[3]
+
+        if(x1 < xwmin):
+            if(y1 < ywmin):
+                code1 = "1001"
+            elif(y1 > ywmax):
+                code1 = "0101"
+            else:
+                code1 = "0001"
+        elif(x1 > xwmax):
+            if(y1 < ywmin):
+                code1 = "1010"
+            elif(y1 > ywmax):
+                code1 = "0110"
+            else:
+                code1 = "0010"
+        else:
+            if(y1 < ywmin):
+                code1 = "1000"
+            elif(y1 > ywmax):
+                code1 = "0100"
+            else:
+                code1 = "0000"
+        
+        if(x2 < xwmin):
+            if(y2 < ywmin):
+                code2 = "1001"
+            elif(y2 > ywmax):
+                code2 = "0101"
+            else:
+                code2 = "0001"
+        elif(x2 > xwmax):
+            if(y2 < ywmin):
+                code2 = "1010"
+            elif(y2 > ywmax):
+                code2 = "0110"
+            else:
+                code2 = "0010"
+        else:
+            if(y2 < ywmin):
+                code2 = "1000"
+            elif(y2 > ywmax):
+                code2 = "0100"
+            else:
+                code2 = "0000"
+        
+        for i in range(4):
+            if (code1[i] == code2[i] == "1"): # Completely out of bounds if there is '1' in the same bit position
+                return
+
+        #if not completely out of bound, that's means bbox is within safe zone (both partially and entirely)
+        self.collision = True
+        return
