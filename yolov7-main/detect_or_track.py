@@ -334,36 +334,37 @@ def detect(save_img=False):
                     '''
                         [Construction Site Ahead] [2/2]
                     '''
-                    video_width = int(vid_cap.get(cv2.CAP_PROP_FRAME_WIDTH))
-                    video_height = int(vid_cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
+                    if opt.predict:
+                        video_width = int(vid_cap.get(cv2.CAP_PROP_FRAME_WIDTH))
+                        video_height = int(vid_cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
                     
-                    loss_limit = 10                 # [EDIT here!!] limit for successive times didn't got detected
-                    frames_ahead = 30               # [EDIT here!!] for inter/extrapolation
-                    for bbox in tracked_dets:
-                        regression(bbox, frame)                                      #this will create 'regression_dets'
-                    regression_checker(loss_limit)
+                        loss_limit = 10                 # [EDIT here!!] limit for successive times didn't got detected
+                        frames_ahead = 30               # [EDIT here!!] for inter/extrapolation
+                        for bbox in tracked_dets:
+                            regression(bbox, frame)                                      #this will create 'regression_dets'
+                        regression_checker(loss_limit)
                     
-                    regression_prediction(frames_ahead, im0, [video_width, video_height]) #this will create 'all_predicted_results'
+                        regression_prediction(frames_ahead, im0, [video_width, video_height]) #this will create 'all_predicted_results'
                     
-                    if(frame >= frames_ahead * 2):
-                        for bbox in tracked_dets:   #Check the accuracy for each and every object detected in this frame
-                            id = bbox[-1]
-                            if(id in predicted_id):
-                                predictions = all_predicted_results[predicted_id.index(id)]
-                                regression_analyzer(bbox, frame, predictions)       #this will create 'all_error_array'
-                    '''
-                        ========= [Debugging Section] ======== [3/3]
-                        
-                        ic(frame_err_rates)
-                        ic(sum_centroid_err)
-                        ic(sum_area_err)
-                        ic(len(frame_err_rates))    
-                        ic(avg_err_rates)
+                        if(frame >= frames_ahead * 2):
+                            for bbox in tracked_dets:   #Check the accuracy for each and every object detected in this frame
+                                id = bbox[-1]
+                                if(id in predicted_id):
+                                    predictions = all_predicted_results[predicted_id.index(id)]
+                                    regression_analyzer(bbox, frame, predictions)       #this will create 'all_error_array'
                         '''
-                        #    ====== [End of Debugging Section] =====
-                    '''
+                            ========= [Debugging Section] ======== [3/3]
+                        
+                            ic(frame_err_rates)
+                            ic(sum_centroid_err)
+                            ic(sum_area_err)
+                            ic(len(frame_err_rates))    
+                            ic(avg_err_rates)
+                        '''
+                            #    ====== [End of Debugging Section] =====
+                        '''
                         [End of Construction Site]
-                    '''
+                        '''
                     
                     tracks =sort_tracker.getTrackers()
 
@@ -437,8 +438,10 @@ def detect(save_img=False):
                         vid_writer = cv2.VideoWriter(save_path, cv2.VideoWriter_fourcc(*'mp4v'), fps, (w, h))
                     vid_writer.write(im0)
 
-    predictPlots(all_warnings)
-    save_err_to_excel()
+    if opt.plot:
+        predictPlots(all_warnings)
+    if opt.excel:
+        save_err_to_excel()
 
     if save_txt or save_img:
         s = f"\n{len(list(save_dir.glob('labels/*.txt')))} labels saved to {save_dir / 'labels'}" if save_txt else ''
@@ -478,6 +481,10 @@ if __name__ == '__main__':
     parser.add_argument('--unique-track-color', action='store_true', help='show each track in unique color')
 
     parser.add_argument('--pause-frame', action='store_true', help='pause each frame')
+
+    parser.add_argument('--predict', action='store_true', help='predict the object whereabouts')
+    parser.add_argument('--plot', action='store_true', help='plot the graph for prediction accuracy')
+    parser.add_argument('--excel', action='store_true', help='save prediction errors to excel files')
 
     opt = parser.parse_args()
     print(opt)

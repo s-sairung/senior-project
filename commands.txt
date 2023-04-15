@@ -24,4 +24,4 @@ python detect_or_track.py --weights yolov7.pt --no-trace --view-img --source str
 python detect_or_track.py --weights main_yolo.pt custom_tiny.pt --no-trace --source carDash4.mp4 --show-fps --nosave --track
 
 [Evaluate]:
-python detect_or_track.py --weights main_medium_500e2.pt custom_medium.pt --no-trace --source eval01.mp4 --show-fps --track --project Evaluation --name eval01 --exist-ok
+python detect_or_track.py --weights main_medium_500e2.pt custom_medium.pt --no-trace --source eval01.mp4 --show-fps --track --project Evaluation --name prediction --exist-ok --predict
