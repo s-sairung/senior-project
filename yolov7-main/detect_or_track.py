@@ -441,7 +441,7 @@ def detect(save_img=False):
     if opt.plot:
         predictPlots(all_warnings)
     if opt.excel:
-        save_err_to_excel()
+        save_err_to_excel(all_warnings)
 
     if save_txt or save_img:
         s = f"\n{len(list(save_dir.glob('labels/*.txt')))} labels saved to {save_dir / 'labels'}" if save_txt else ''

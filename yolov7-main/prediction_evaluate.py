@@ -88,7 +88,7 @@ def regression_analyzer (ground_truth_bbox, frame, predictions):
                         err_90 = obj_err[4]
                         err_90.append(err)
 
-def save_err_to_excel():
+def save_err_to_excel(all_warnings):
     
     workbook = xlsxwriter.Workbook('errors.xlsx')
     worksheet = workbook.add_worksheet()
@@ -105,6 +105,16 @@ def save_err_to_excel():
                 worksheet.write_row(row, col, data)
 
     workbook.close()
+    ''''''
+    workbook = xlsxwriter.Workbook('warnings.xlsx')
+    worksheet = workbook.add_worksheet()
+
+    col = 0
+    row = 0
+    worksheet.write_column(row, col, all_warnings)
+
+    workbook.close()
+
 
 # Plot all the errors from our prediction into the graph, for centriod errors and scale errors separately
 # Also plot into frequency histograms for each level of each err type too (+ collision warning)
@@ -118,7 +128,7 @@ all_scale_err90 = []
 def predictPlots(all_warnings):
     
     ''' Collision Warning Histogram'''
-    #ic(all_warnings)
+    ic(all_warnings)
     plt.hist(np.array(all_warnings), range=[1, 3])
     plt.xlabel('Collision warning level')
     plt.ylabel('Frequency')
@@ -256,6 +266,7 @@ def predictPlots(all_warnings):
     plt.savefig(os.path.join(eval_path, eval_name), dpi = 300)
     plt.clf()    
 
+    '''
     mean_cen_30 = np.mean(np.array(all_cen_err30))
     mean_cen_60 = np.mean(np.array(all_cen_err60))
     mean_cen_90 = np.mean(np.array(all_cen_err90))
@@ -272,20 +283,20 @@ def predictPlots(all_warnings):
     sd_scale_60 = np.std(np.array(all_scale_err60))
     sd_scale_90 = np.std(np.array(all_scale_err90))
 
-    #ic(all_cen_err30)
+    ic(all_cen_err30)
     ic(mean_cen_30, sd_cen_30)
-    #ic(all_cen_err60)
+    ic(all_cen_err60)
     ic(mean_cen_60, sd_cen_60)
-    #ic(all_cen_err90)
+    ic(all_cen_err90)
     ic(mean_cen_90, sd_cen_90)
 
-    #ic(all_scale_err30)
+    ic(all_scale_err30)
     ic(mean_scale_30, sd_scale_30)
-    #ic(all_scale_err30)
+    ic(all_scale_err30)
     ic(mean_scale_60, sd_scale_60)
-    #ic(all_scale_err30)
+    ic(all_scale_err30)
     ic(mean_scale_90, sd_scale_90)
-
+    '''
     '''
         [End of Construction Site]
     '''
