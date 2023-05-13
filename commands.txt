@@ -20,15 +20,8 @@ python test.py --data data/coco.yaml --img 640 --batch 32 --conf 0.001 --iou 0.6
 python detect.py --weights yolov7.pt --conf 0.4 --img-size 640 --source ./inference/images/0.jpg
 
 [Track]:
-python detect_or_track.py --weights yolov7.pt --no-trace --view-img --source street.mp4 --show-fps --nosave
+python detect_or_track.py --weights yolov7.pt --no-trace --view-img --source street.mp4 --show-fps --nosave --track --pause
+python detect_or_track.py --weights main_yolo.pt custom_tiny.pt --no-trace --source carDash4.mp4 --show-fps --nosave --track
 
-[extra commands]:
---nosave
---show-fps
---seed (number)         //box color
---track 		//labeling obj
---classes (numbers) 	//respectively to coco.yaml
---show-track
---unique-track-color
---nobbox		//no box
---nolabel
+[Evaluate]:
+python detect_or_track.py --weights main_medium_500e2.pt custom_medium.pt --no-trace --source eval01.mp4 --show-fps --track --project Evaluation --name prediction --exist-ok --predict

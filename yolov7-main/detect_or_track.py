@@ -16,6 +16,12 @@ from utils.plots import plot_one_box
 from utils.torch_utils import select_device, load_classifier, time_synchronized, TracedModel
 
 from sort import *
+from linear_prediction import *
+from prediction_evaluate import *
+import math
+import matplotlib.pyplot as plt
+from icecream import ic
+
 
 
 """Function to Draw Bounding boxes"""
@@ -28,7 +34,7 @@ def draw_boxes(img, bbox, identities=None, categories=None, confidences = None, 
         id = int(identities[i]) if identities is not None else 0
         # conf = confidences[i] if confidences is not None else 0
 
-        color = colors[cat]
+        color = colors[cat] if colors is not None else 0
         
         if not opt.nobbox:
             cv2.rectangle(img, (x1, y1), (x2, y2), color, tl)
@@ -44,7 +50,174 @@ def draw_boxes(img, bbox, identities=None, categories=None, confidences = None, 
 
     return img
 
+all_warnings = []
+def draw_prediction_boxes(img, all_predictions):
+    id = int(all_predictions[0])
 
+    for prediction_level, predictions in enumerate(all_predictions[2:]):
+        if(len(predictions) < 1): 
+            break
+        
+        box = predictions[0]
+        x1 = int(box[1][0])
+        y1 = int(box[1][1])
+        x2 = int(box[2][0])
+        y2 = int(box[2][1])
+        warning = box[5]
+
+        tl = opt.thickness or round(0.002 * (img.shape[0] + img.shape[1]) / 2) + 1  # line/font thickness
+
+        ttc = ""
+        if(warning):
+            color = (0,0,211- prediction_level*30)
+            if(prediction_level == 0):
+                ttc = " [Warning] Collision within 1 second!!!"
+            elif(prediction_level == 1):
+                ttc = " [Warning] Collision within 2 seconds!!"
+            elif(prediction_level == 2):
+                ttc = " [Warning] Collision within 3 seconds!"
+            all_warnings.append(prediction_level+1)
+        else:
+            color = (211- prediction_level*30 ,211- prediction_level*30 ,211- prediction_level*30)
+        
+        if not opt.nobbox:
+            cv2.rectangle(img, (x1, y1), (x2, y2), color, tl)
+
+        if not opt.nolabel:
+            label = str(id) + ttc
+            tf = max(tl - 1, 1)  # font thickness
+            t_size = cv2.getTextSize(label, 0, fontScale=tl / 3, thickness=tf)[0]
+            c2 = x1 + t_size[0], y1 - t_size[1] - 3
+            cv2.rectangle(img, (x1, y1), c2, color, -1, cv2.LINE_AA)  # filled
+            cv2.putText(img, label, (x1, y1 - 2), 0, tl / 3, [225, 255, 255], thickness=tf, lineType=cv2.LINE_AA)
+
+'''
+    [Construction Site Ahead] [1/2]
+
+    regression_dets:    array that stores the bbox objects from class PredictionBox
+    regerssion_id:      array that stores the bbox_id (bbox_label)
+
+        [!!!WARNING!!!] This area is still in development, expected the worst as of now!!!
+
+    regression_id =     [       id_1,           id_2,               id_3,       ...,        id_n     ]
+    regression_dets =   [regression_box_1, regression_box_2, regression_box_3,  ..., regression_box_n]
+
+    regression_box: look at PredictionBox's object initialization for more details
+'''
+regression_dets = []
+regression_id = []
+countdown = [] # time since last updated frame
+
+def regression(bbox, frame):
+
+    bbox_id = bbox[-1]
+
+    if bbox_id not in regression_id:
+        regression_box = PredictionBox(bbox, frame)
+        regression_dets.append(regression_box)
+        regression_id.append(regression_box.id)
+        countdown.append(0)
+    else:
+        regression_dets[regression_id.index(bbox_id)].update(bbox, frame)
+        countdown[regression_id.index(bbox_id)] = 0 
+
+def regression_checker (limit):
+    times_deleted = 0    
+    for index in range(len(countdown)):
+        countdown[index] += 1
+        if countdown[index] > limit:
+            regression_dets.pop(index)
+            regression_id.pop(index)
+            countdown.pop(index)
+            countdown.append(-1)
+            times_deleted += 1
+            index -= 1
+    while times_deleted > 0:
+        countdown.pop(-1)
+        times_deleted -= 1
+
+    '''
+        ========= [Debugging Section] ======== [1/2]
+                        
+    print("Status of the Regression box")
+    ic([regression_box.id, regression_box.times_tracked, regression_box.x, regression_box.y])
+    ic(regression_box.frames)
+    ic(regression_box.trajectories)
+    ic(regression_box.scales)
+    '''
+    #    ====== [End of Debugging Section] =====
+    
+predicted_dets = []
+all_predicted_results = []
+predicted_id = []
+
+'''
+    predicted_id =          [           id_1,               id_2,                 id_3,        ...,          id_n       ]
+    all_predicted_results = [prediction_results_1, prediction_results_2, prediction_results_3, ..., prediction_results_n]
+
+    predicted_results =     [id, prediction_30, prediction_60, prediction_90]
+    predicted_k =           [prediction_k(1), prediction_k(2), prediction_k(3), ..., prediction_k(n)]
+    prediction =            [predicted_frame, (x1, y1), (x2, y2), (width, height), (xc, yc), collision, trajectory, scaling_factor]
+'''
+
+def regression_prediction(frames_ahead, video, video_dimension):
+    for regression_box in regression_dets:
+
+        predicted_results = regression_box.predict_ahead(frames_ahead, video_dimension)
+        if(predicted_results != -1):        # -1 means the box has yet reach the minimum frames threshold
+            id = predicted_results[0]
+            if(id not in predicted_id):
+                predicted_id.append(id)
+                all_predicted_results.append(predicted_results)
+            else:
+                prediction_30 = predicted_results[2][0]
+                prediction_60 = []
+                prediction_90 = []
+
+                if(len(predicted_results[3]) > 0):
+                    prediction_60 = predicted_results[3][0]
+                    if(len(predicted_results[4]) > 0):
+                        prediction_90 = predicted_results[4][0]
+
+                if(len(prediction_30) > 0):
+                    all_predicted_results[predicted_id.index(id)][2].append(prediction_30)
+                    if(len(prediction_60) > 0):
+                        all_predicted_results[predicted_id.index(id)][3].append(prediction_60)
+                        if(len(prediction_90) > 0):
+                            all_predicted_results[predicted_id.index(id)][4].append(prediction_90)
+
+            draw_prediction_boxes(video, predicted_results)
+    
+    '''        
+                ========= [Debugging Section] ======== [2/3]
+                       
+            predicted_frame = prediction[1]
+
+            x1y1 = prediction[2]
+            x1 = x1y1[0]
+            y1 = x1y1[1]
+
+            x2y2 = prediction[3]
+            x2 = x2y2[0]
+            y2 = x2y2[1]
+
+            width_height = prediction[4]
+            width = width_height[0]
+            height = width_height[1]
+
+            centroid = prediction[5]
+            xc = centroid[0]
+            yc = centroid[1]
+
+            collision = prediction[-3]
+            trajectory = prediction[-2]          
+            scale_change = prediction[-1]
+
+            print("Status of the Prediction box")
+            ic([id, predicted_frame, x1, y1, x2, y2, scale_change])
+            ''' 
+            #    ====== [End of Debugging Section] =====           
+    
 def detect(save_img=False):
     source, weights, view_img, save_txt, imgsz, trace = opt.source, opt.weights, opt.view_img, opt.save_txt, opt.img_size, not opt.no_trace
     save_img = not opt.nosave and not source.endswith('.txt')  # save inference images
@@ -57,7 +230,8 @@ def detect(save_img=False):
     # Initialize
     set_logging()
     device = select_device(opt.device)
-    half = device.type != 'cpu'  # half precision only supported on CUDA
+    # half = device.type != 'cpu'  # half precision only supported on CUDA
+    half = False
 
     # Load model
     model = attempt_load(weights, map_location=device)  # load FP32 model
@@ -155,10 +329,45 @@ def detect(save_img=False):
                     dets_to_sort = np.vstack((dets_to_sort, 
                                 np.array([x1, y1, x2, y2, conf, detclass])))
 
-
                 if opt.track:
   
                     tracked_dets = sort_tracker.update(dets_to_sort, opt.unique_track_color)
+
+                    '''
+                        [Construction Site Ahead] [2/2]
+                    '''
+                    if opt.predict:
+                        video_width = int(vid_cap.get(cv2.CAP_PROP_FRAME_WIDTH))
+                        video_height = int(vid_cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
+                    
+                        loss_limit = 10                 # [EDIT here!!] limit for successive times didn't got detected
+                        frames_ahead = 30               # [EDIT here!!] for inter/extrapolation
+                        for bbox in tracked_dets:
+                            regression(bbox, frame)                                      #this will create 'regression_dets'
+                        regression_checker(loss_limit)
+                    
+                        regression_prediction(frames_ahead, im0, [video_width, video_height]) #this will create 'all_predicted_results'
+                    
+                        if(frame >= frames_ahead * 2):
+                            for bbox in tracked_dets:   #Check the accuracy for each and every object detected in this frame
+                                id = bbox[-1]
+                                if(id in predicted_id):
+                                    predictions = all_predicted_results[predicted_id.index(id)]
+                                    regression_analyzer(bbox, frame, predictions)       #this will create 'all_error_array'
+                        '''
+                            ========= [Debugging Section] ======== [3/3]
+                        
+                            ic(frame_err_rates)
+                            ic(sum_centroid_err)
+                            ic(sum_area_err)
+                            ic(len(frame_err_rates))    
+                            ic(avg_err_rates)
+                        '''
+                            #    ====== [End of Debugging Section] =====
+                        '''
+                        [End of Construction Site]
+                        '''
+                    
                     tracks =sort_tracker.getTrackers()
 
                     # draw boxes for visualization
@@ -191,8 +400,7 @@ def detect(save_img=False):
 
                 
                     
-                
-                
+                            
             # Print time (inference + NMS)
             print(f'{s}Done. ({(1E3 * (t2 - t1)):.1f}ms) Inference, ({(1E3 * (t3 - t2)):.1f}ms) NMS')
 
@@ -207,8 +415,10 @@ def detect(save_img=False):
 
             #######################################################
             if view_img:
+                cv2.namedWindow(str(p), cv2.WINDOW_KEEPRATIO) # NOTE: only works with the qt backend
                 cv2.imshow(str(p), im0)
-                cv2.waitKey(1)  # 1 millisecond
+                cv2.resizeWindow(str(p), 600, 600)
+                cv2.waitKey(int(not opt.pause_frame)) # if pause_frame: 0 (forever) else: 1 (1 ms)
 
             # Save results (image with detections)
             if save_img:
@@ -229,6 +439,11 @@ def detect(save_img=False):
                             save_path += '.mp4'
                         vid_writer = cv2.VideoWriter(save_path, cv2.VideoWriter_fourcc(*'mp4v'), fps, (w, h))
                     vid_writer.write(im0)
+
+    if opt.plot:
+        predictPlots(all_warnings)
+    if opt.excel:
+        save_err_to_excel(all_warnings)
 
     if save_txt or save_img:
         s = f"\n{len(list(save_dir.glob('labels/*.txt')))} labels saved to {save_dir / 'labels'}" if save_txt else ''
@@ -267,6 +482,11 @@ if __name__ == '__main__':
     parser.add_argument('--nolabel', action='store_true', help='don`t show label')
     parser.add_argument('--unique-track-color', action='store_true', help='show each track in unique color')
 
+    parser.add_argument('--pause-frame', action='store_true', help='pause each frame')
+
+    parser.add_argument('--predict', action='store_true', help='predict the object whereabouts')
+    parser.add_argument('--plot', action='store_true', help='plot the graph for prediction accuracy')
+    parser.add_argument('--excel', action='store_true', help='save prediction errors to excel files')
 
     opt = parser.parse_args()
     print(opt)
@@ -285,3 +505,5 @@ if __name__ == '__main__':
                 strip_optimizer(opt.weights)
         else:
             detect()
+
+

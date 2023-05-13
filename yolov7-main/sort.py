@@ -12,6 +12,7 @@ import glob
 import time
 import argparse
 from filterpy.kalman import KalmanFilter
+from icecream import ic
 
 
 def get_color():
@@ -91,6 +92,7 @@ class KalmanBoxTracker(object):
         self.kf.Q[-1,-1] *= 0.5 # Q: Covariance matrix of process noise (set to high for erratically moving things)
         self.kf.Q[4:,4:] *= 0.5
 
+        #ic(bbox)
         self.kf.x[:4] = convert_bbox_to_z(bbox) # STATE VECTOR
         self.time_since_update = 0
         self.id = KalmanBoxTracker.count
@@ -152,7 +154,7 @@ class KalmanBoxTracker(object):
         np.concatenate((arr1,arr3), axis=1)
         """
         arr_detclass = np.expand_dims(np.array([self.detclass]), 0)
-        
+    
         arr_u_dot = np.expand_dims(self.kf.x[4],0)
         arr_v_dot = np.expand_dims(self.kf.x[5],0)
         arr_s_dot = np.expand_dims(self.kf.x[6],0)
@@ -240,12 +242,53 @@ class Sort(object):
         self.frame_count += 1
         
         # Get predicted locations from existing trackers
+        #ic(dets)
         trks = np.zeros((len(self.trackers), 6))
         to_del = []
         ret = []
         for t, trk in enumerate(trks):
-           
-            pos = self.trackers[t].predict()[0]
+            #ic(self.trackers[t].kf)
+            prediction = self.trackers[t].predict()
+            #ic(prediction)
+            '''
+            !!!NOT WORKING!!!
+
+            prediction = [[pred_x1 ,pred_y1, pred_x3, pred_y3]]
+            If it's is one-step ahead prediction, what if I feed them back again for further step prediction?
+            So, maybe I should make new varaible just for multistep ahead
+
+            Then update the position
+
+            Then feed them back to predict and loop as many as we want (In this case, 5 frame ahead)
+
+            
+            step_pos = prediction[0]
+
+            step_prediction_tracker.x[:4] = [step_pos[0], step_pos[1], step_pos[2], step_pos[3]]
+            step_prediction_tracker = self.trackers[t]
+            count = 1
+            while(count < 5):
+                step_prediction = step_prediction_tracker.predict()
+                step_pos = step_prediction[0]
+                step_prediction_tracker.x[:4] = [step_pos[0], step_pos[1], step_pos[2], step_pos[3]]
+                count += 1
+            ic(step_prediction)
+
+            !!!NOT WORKING!!!
+            '''
+
+            '''
+                From above, I just realized that KalmanFilterTracker doesn't store bbox.
+                It just create a new one and get updated. So I'll try to update it rapidly for further step
+
+                step_prediction_tracker = self.trackers[t]
+                step_pos = prediction[0]
+                step_prediction_tracker.update([step_pos[0], step_pos[1], step_pos[2], step_pos[3]])
+
+
+            '''
+
+            pos = prediction[0]
             trk[:] = [pos[0], pos[1], pos[2], pos[3], 0, 0]
             if np.any(np.isnan(pos)):
                 to_del.append(t)
@@ -271,6 +314,8 @@ class Sort(object):
         i = len(self.trackers)
         for trk in reversed(self.trackers):
             d = trk.get_state()[0]
+            #ic(trk)
+            #ic(d)
             if (trk.time_since_update < 1) and (trk.hit_streak >= self.min_hits or self.frame_count <= self.min_hits):
                 ret.append(np.concatenate((d, [trk.id+1])).reshape(1,-1)) #+1'd because MOT benchmark requires positive value
             i -= 1
