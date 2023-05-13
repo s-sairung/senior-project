@@ -7,5 +7,4 @@ yolov7-main/hubconf.py
 yolov7-main/LICENSE.md
 yolov7-main/README.md
 yolov7-main/test.py
-yolov7-main/train.py
 yolov7-main/train_aux.py

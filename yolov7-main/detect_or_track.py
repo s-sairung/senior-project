@@ -73,8 +73,10 @@ def detect(save_img=False):
     # Second-stage classifier
     classify = False
     if classify:
-        modelc = load_classifier(name='resnet101', n=2)  # initialize
-        modelc.load_state_dict(torch.load('weights/resnet101.pt', map_location=device)['model']).to(device).eval()
+        # TODO: Modify this to load YOLO model
+        modelc = load_classifier(name='test', n=2)
+        # modelc = torch.hub.load('WongKinYiu/yolov7', 'yolov7', pretrained=True)
+        modelc.load_state_dict(torch.load('yolov7.pt', map_location=device)['model']).to(device).eval()
 
     # Set Dataloader
     vid_path, vid_writer = None, None
